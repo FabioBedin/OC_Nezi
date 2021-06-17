@@ -1,5 +1,5 @@
 ---
-title: "Home"
+title: "Ovarian cancer dataset"
 site: workflowr::wflow_site
 output:
   workflowr::wflow_html:
@@ -8,4 +8,32 @@ editor_options:
   chunk_output_type: console
 ---
 
-Welcome to my research website.
+### Strategy for analysis and visualization of Nezi Ovarian cancer dataset.
+
+
+# Analysis
+
+The different sub-populations in the analysis are identify as sensivie **(S)**, intermediate sensitive **(IS)** and resistant **(R)** based on the relapse time.
+
+***
+
++ [T1 vs T2 comparison](T1_vs_T2_Perseus_imputation.html): all the possible combination between **T1** and **T2** populations.
+
++ [T1 vs TME1 comparison](T1_vs_TME1_Perseus_imputation.html): all the possible combination between **T1** and **TME1** populations.
+
++ [T2 vs TME2 comparison](T2_vs_TME2_Perseus_imputation.html): all the possible combination between **T2** and **TME2** populations.
+
+***
+
+### Old analysis integration 
+
+in this analysis I combine the previeus results obtained form single patient comparison with the new strategy. 
+It is now possible to observe the unique proteins within the differential analysis thanks to imputation.
+
++ [T1 vs T2](Integration_old_analysis.html): patients comparison in condition **T1** vs **T2**.
+
++ [T1 vs TME1](Integration_old_analysis_T1_TME1.html): patients comparison in condition **T1** vs **TME1**.
+
++ [T2 vs TME2](Integration_old_analysis_T2_TME2.html): patients comparison in condition **T2** vs **TME2**
+
+***

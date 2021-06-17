@@ -1,0 +1,673 @@
+---
+title: "T1 vs TME1 comparison"
+author: "Fabio Bedin | MS-Unit"
+output: html_document
+---
+
+# Ovarian cancer dataset
+
+***
+
+```{r librerie, message=FALSE, warning=FALSE}
+#set.seed(20210520)
+knitr::opts_chunk$set(fig.align = "center")
+library("MBQN")
+library("dplyr")
+library("tidyr")
+library("DEP")
+library("SummarizedExperiment")
+library("preprocessCore")
+library("tibble")
+library("ggplot2")
+library("enrichR")
+library("DT")
+library("stringr")
+library("patchwork")
+```
+
+```{r Custom Functions}
+
+source(here::here("code/custom_functions.R"))
+
+```
+
+## Introduction
+
+***
+
+For this analysis i will focus in all the possible combination between **T1** and **TME1** populations, where different sub-populations can be identify as sensivie **(S)**, intermediate sensitive **(IS)** and resistant **(R)**.
+
+```{r input_Data}
+data <- read.csv(here::here("data/proteinGroups.txt"), header = TRUE,stringsAsFactors = FALSE, sep = "\t")
+
+expdesign <- read.table(here::here("data/expdesign_SI_S_R.tsv"), header = T, stringsAsFactors = F)
+
+anova_table <- read.table(here::here("data/anova_table_t1_tme1.txt"), header = T, stringsAsFactors = F, sep = "\t")
+
+conditions<-c("T1_IS","T1_S","T1_R","TME1_IS","TME1_S","TME1_R")
+
+expdesign <- subset(expdesign, condition %in% conditions)
+```
+
+## Data wrangling
+
+***
+
+First, we need to wrangling the original dataset. From the **proteinGroups** obtained by **MaxQuant** software, I remove proteins that are marked form the software as *potential contaminant*, *only identify by site* and *reverse*.
+
+```{r Data wrangling}
+data <- data[data$Reverse != "+" & data$Potential.contaminant != "+" & data$Only.identified.by.site != "+",]
+
+data_unique <- make_unique(data, "Gene.names", "Protein.IDs", delim = ";")
+
+columns<-match(paste("LFQ.intensity.",expdesign$label,sep=""),colnames(data_unique))
+
+data_se <- make_se(data_unique, columns, expdesign)
+```
+
+To understand the structure of the dataset and define a strategy, I use different quality control polts:
+
+### Quality control Plots {.tabset .tabset-fade .tabset-pills}
+
+All this plot can also hepl to decide the strategy to filter the missing data.
+
+#### Frequency plot
+
+```{r plot_freq, fig.height = 7, fig.width = 12}
+plot_frequency(data_se)
+```
+
+#### Number of protein per sample
+
+```{r plot numbers, fig.height = 7, fig.width = 12}
+plot_numbers(data_se)
+```
+
+#### Distibution of each sample
+
+```{r plot_norm, fig.height = 10, fig.width = 10}
+plot_normalization(data_se)
+```
+
+## The problem of missing data
+
+***
+
+In the original dataset, the percentage of missing data is **`r round((sum(is.na(assay(data_se)))/prod(dim(assay(data_se))))*100, digits = 2)`%** and can be visualized with the following heatmap.
+
+```{r plot_mv, message=FALSE, fig.height = 7, fig.width = 12}
+plot_missval(data_se)
+```
+
+## Filter missing data
+
+***
+
+To reduce the percentage of missing data I have decided to filter samples with less then **2000** identify proteins.
+Afrer that, I also use a second strong filter to remove all the proteins that are not identify in all replicates in at least 1 groups.
+
+```{r data_filt}
+data_filt <- filter_bad_samples(data_se, thr = 2000)
+
+data_filt <- filter_missval(data_filt, thr = 0)
+```
+
+
+These plot show the effect of the filters. Now we reduce the percetage of missing data in the dataset down to: **`r round((sum(is.na(assay(data_filt)))/prod(dim(assay(data_filt))))*100, digits = 2)`%**.
+
+### Plots with filters {.tabset .tabset-fade .tabset-pills}
+
+#### protein coverage
+
+```{r plot_coverage}
+plot_coverage(data_filt)
+```
+
+#### Number of protein per sample
+
+```{r plot_numbers_filt}
+plot_numbers(data_filt)
+```
+
+#### Distibution
+
+```{r plot_norm_filt, fig.height = 8, fig.width = 8}
+plot_normalization(data_filt)
+```
+
+#### Plot missing data
+
+```{r plot_mv_filt, message=FALSE}
+plot_missval(data_filt)
+```
+
+## Imputation
+
+***
+
+An idealized version of a label-free discovery mass spectrometry proteomics experiment would provide absolute abundance measurements for a whole proteome, across varying conditions. Unfortunately, this ideal is not realized. Measurements are made on peptides requiring an inferential step to obtain protein level estimates. The inference is complicated by experimental factors that necessitate relative abundance estimation and result in widespread **non-ignorable missing data**. Relative abundance on the log scale takes the form of parameter contrasts. In a complete-case analysis, contrast estimates may be biased by missing data and a substantial amount of useful information will often go unused.
+
+To avoid this problem, we impute missing data using random draws from manually defined left-shifted Gaussian distribution.
+
+
+```{r mixed_imputation, message=FALSE, warning=FALSE, results='hide'}
+data_imp_man <- impute(data_filt, fun = "man", shift = 1.8, scale = 0.3)
+```
+
+This plot show the effect of imputation, as expected a new population of low intensity values as emerged.
+
+```{r plot_imputation}
+plot_imputation(data_filt, data_imp_man)
+```
+
+## Differential enrichment analysis
+
+***
+
+Protein-wise linear models combined with empirical Bayes statistics are used for the differential enrichment analysis (or differential expression analysis). I test all possible combination between T1 S, IS and R vs T2 S, IS, and R.
+
+```{r test_diff}
+data_diff <- test_diff(data_imp_man, type = "all")
+```
+
+I define sifnificant protein with **FDR = 0.05** and **FC = 1**
+
+```{r Diff_prot}
+dep <- add_rejections(data_diff, alpha = 0.05, lfc = 1)
+
+results<-get_results(dep)
+```
+ 
+There are **`r results %>% filter(significant) %>% nrow()`** significant proteins within all comparisons.
+The following table shows the results:
+
+```{r significant_table}
+results %>% 
+  filter(significant) %>%
+  select(-significant, -ends_with("centered")) %>% 
+  pivot_longer(
+   cols = ends_with(c("p.val", "p.adj", "significant", "ratio")),
+   names_to = c("comparison", ".value"),
+   names_pattern = "(.*_.*_.*_.*_.*)_(.*)") %>% 
+  arrange(name, p.adj) %>% 
+  relocate(comparison) %>% 
+  mutate(across(ends_with(c("p.val", "p.adj")), format, scientific = T, digits = 2)) %>% 
+  mutate(significant = str_to_title(significant)) %>% 
+  DT::datatable(options = list(
+  columnDefs = list(list(className = 'dt-center', targets = 1:7)),
+  pageLength = 15))
+```
+
+
+### Visualization of the results {.tabset .tabset-fade .tabset-pills}
+
+***
+
+The results from the analysis can be easily visualized by a number of plot functions.
+
+#### PCA
+
+```{r PCA, message=FALSE, warning=FALSE, fig.height = 8, fig.width = 8}
+plot_pca(dep, x = 1, y = 2, n = 500, point_size = 4, indicate = "condition")
+```
+
+
+
+#### Correlation matrix
+
+```{r plot_cor, fig.height = 8}
+plot_cor(dep, significant = TRUE, lower = 0, upper = 1, pal = "Reds")
+```
+
+
+#### Overview all volcano plot
+
+```{r all_volcano, warning=FALSE, fig.height = 8, fig.width = 8}
+cont <- "T1_IS_vs_T1_R"
+p1 <- plot_volcano(dep, contrast=cont, add_names=F,label_size=5,adjusted = F)
+cont <- "T1_IS_vs_T1_S"
+p2 <- plot_volcano(dep, contrast=cont, add_names=F,label_size=5,adjusted = F)
+cont <- "T1_IS_vs_TME1_IS"
+p3 <- plot_volcano(dep, contrast=cont, add_names=F,label_size=5,adjusted = F)
+cont <- "T1_IS_vs_TME1_R"
+p4 <- plot_volcano(dep, contrast=cont, add_names=F,label_size=5,adjusted = F)
+cont <- "T1_IS_vs_TME1_S"
+p5 <- plot_volcano(dep, contrast=cont, add_names=F,label_size=5,adjusted = F)
+cont <- "T1_R_vs_T1_S"
+p6 <- plot_volcano(dep, contrast=cont, add_names=F,label_size=5,adjusted = F)
+cont <- "T1_R_vs_TME1_IS"
+p7 <- plot_volcano(dep, contrast=cont, add_names=F,label_size=5,adjusted = F)
+cont <- "T1_R_vs_TME1_R"
+p8 <- plot_volcano(dep, contrast=cont, add_names=F,label_size=5,adjusted = F)
+cont <- "T1_R_vs_TME1_S"
+p9 <- plot_volcano(dep, contrast=cont, add_names=F,label_size=5,adjusted = F)
+cont <- "T1_S_vs_TME1_IS"
+p10 <- plot_volcano(dep, contrast=cont, add_names=F,label_size=5,adjusted = F)
+cont <- "T1_S_vs_TME1_R"
+p11 <- plot_volcano(dep, contrast=cont, add_names=F,label_size=5,adjusted = F)
+cont <- "T1_S_vs_TME1_S"
+p12 <- plot_volcano(dep, contrast=cont, add_names=F,label_size=5,adjusted = F)
+cont <- "TME1_IS_vs_TME1_R"
+p13 <- plot_volcano(dep, contrast=cont, add_names=F,label_size=5,adjusted = F)
+cont <- "TME1_IS_vs_TME1_S"
+p14 <- plot_volcano(dep, contrast=cont, add_names=F,label_size=5,adjusted = F)
+cont <- "TME1_R_vs_TME1_S"
+p15 <- plot_volcano(dep, contrast=cont, add_names=F,label_size=5,adjusted = F)
+```
+
+```{r plot_v_all, fig.height = 12, fig.width = 18}
+(p1 | p2 | p3 | p4 | p5) /
+  (p6 | p7 | p8 | p9 | p10) /
+  (p11 | p12 | p13 | p14 | p15) 
+```
+
+#### Cluster Heatmap
+
+```{r heatmap, fig.height = 15, fig.width = 10}
+plot_heatmap(dep, type = "centered", kmeans = TRUE, k = 7, show_row_names = T, indicate = "condition",col_limit = 5)
+```
+
+```{r}
+#cluster_table <- plot_heatmap(dep, type = "centered", kmeans = TRUE, k = 8, show_row_names = T, indicate = "condition",col_limit = 5, plot = F) %>% dplyr::rename(cluster = k) 
+
+#write.table(cluster_table ,file = "cluster_table.txt", sep="\t", quote=FALSE, row.names=FALSE, col.names = T)
+```
+
+
+### Volcano Plots T1_R vs TME1_R {.tabset}
+
+#### Significant
+
+```{r V1,warning=FALSE, fig.height = 8, fig.width = 8}
+cont <- "T1_R_vs_TME1_R"
+plot_volcano(dep, contrast=cont, add_names=T,label_size=4,adjusted = F)
+```
+
+```{r T1}
+results %>%  select(starts_with("name") | starts_with(cont)) %>% filter(across(ends_with("significant"))) %>% arrange(across(ends_with("p.adj"))) %>% mutate(across(2:3, format, scientific = T, digits = 2)) %>% dplyr::rename_with(~ tolower(gsub(paste0(cont,"_"), "", .x)), .cols = starts_with(cont)) %>%  DT::datatable()
+```
+
+#### Unique
+
+```{r V2,warning=FALSE, fig.height = 8, fig.width = 8}
+unique_vec <- c("AARS2","ABCA8","BAZ1B","CCDC58","COMT","FAF1","FUT8","MBLAC2","MCCC1","NDUFA6","NDUFV2","PABPN1","PLIN1","POLR2E","PPIF","PTGES2","PTGES3","PTGS1","QTRT1","RPL18","RPL37A","SNRPD3","TIMM10","TPD52","XRCC1","CAV1","EFEMP1","PON1","PRR12","SNX7","STX18","ATAD1","C8orf82","CIRH1A","DDX56","FAM177A1","IRGQ","KATNAL2","LAMTOR1","MBNL1","MCM5","NDUFA6","NFKB1","NUCKS1","OPTN","POLR2L","PON2","RPL29","SEC61B","SF3B4","SLC9A3R2","SUPT6H","TRA2A","C16orf46","GLA","NRAS","PCBD1","PLP2","BNIP1","COX7C","GALNT5","OLFML3","S100A14","THG1L")
+plot_volcano_2(dep, contrast=cont, add_names=T,label_size=4,adjusted = F)
+```
+
+```{r T2}
+results %>%  select(starts_with("name") | starts_with(cont)) %>% filter(name %in% unique_vec) %>% arrange(across(ends_with("p.adj"))) %>% mutate(across(2:3, format, scientific = T, digits = 2)) %>% dplyr::rename_with(~ tolower(gsub(paste0(cont,"_"), "", .x)), .cols = starts_with(cont)) %>% DT::datatable()
+```
+
+### Volcano Plots T1_S vs TME1_S {.tabset}
+
+#### Significant
+
+```{r V5,warning=FALSE, fig.height = 8, fig.width = 8}
+cont <- "T1_S_vs_TME1_S"
+plot_volcano(dep, contrast=cont, add_names=T,label_size=4,adjusted = F)
+```
+
+```{r T5}
+results %>%  select(starts_with("name") | starts_with(cont)) %>% filter(across(ends_with("significant"))) %>% arrange(across(ends_with("p.adj"))) %>% mutate(across(2:3, format, scientific = T, digits = 2)) %>% dplyr::rename_with(~ tolower(gsub(paste0(cont,"_"), "", .x)), .cols = starts_with(cont)) %>%  DT::datatable()
+```
+
+#### Unique
+
+```{r V6,warning=FALSE, fig.height = 8, fig.width = 8}
+unique_vec <- unique_vec <- c("AARS2","ABCA8","BAZ1B","CCDC58","COMT","FAF1","FUT8","MBLAC2","MCCC1","NDUFA6","NDUFV2","PABPN1","PLIN1","POLR2E","PPIF","PTGES2","PTGES3","PTGS1","QTRT1","RPL18","RPL37A","SNRPD3","TIMM10","TPD52","XRCC1","CAV1","EFEMP1","PON1","PRR12","SNX7","STX18","CCDC58","CD47","CPSF6","CST1","CSTF3","FKBP8","FNTA","HK2","MBLAC2","MUC16","PCDHGA10","PLD3","PLIN1","PPIF","PTGES3","QTRT1","RPL37A","S100A1","SLC34A2","TRIM33","TUBGCP2","U2SURP","UTS2","WISP2","XPC")
+plot_volcano_2(dep, contrast=cont, add_names=T,label_size=4,adjusted = F)
+```
+
+```{r T6}
+results %>%  select(starts_with("name") | starts_with(cont)) %>% filter(name %in% unique_vec) %>% arrange(across(ends_with("p.adj"))) %>% mutate(across(2:3, format, scientific = T, digits = 2)) %>% dplyr::rename_with(~ tolower(gsub(paste0(cont,"_"), "", .x)), .cols = starts_with(cont)) %>% DT::datatable()
+```
+
+### Volcano Plots T1_IS vs TME1_IS {.tabset}
+
+#### Significant
+
+```{r V3,warning=FALSE, fig.height = 8, fig.width = 8}
+cont <- "T1_IS_vs_TME1_IS"
+plot_volcano(dep, contrast=cont, add_names=T,label_size=4,adjusted = F)
+```
+
+```{r T3}
+results %>%  select(starts_with("name") | starts_with(cont)) %>% filter(across(ends_with("significant"))) %>% arrange(across(ends_with("p.adj"))) %>% mutate(across(2:3, format, scientific = T, digits = 2)) %>% dplyr::rename_with(~ tolower(gsub(paste0(cont,"_"), "", .x)), .cols = starts_with(cont)) %>%  DT::datatable()
+```
+
+#### Unique
+
+```{r V4,warning=FALSE, fig.height = 8, fig.width = 8}
+unique_vec <- c("AARS2","ABCA8","BAZ1B","CCDC58","COMT","FAF1","FUT8","MBLAC2","MCCC1","NDUFA6","NDUFV2","PABPN1","PLIN1","POLR2E","PPIF","PTGES2","PTGES3","PTGS1","QTRT1","RPL18","RPL37A","SNRPD3","TIMM10","TPD52","XRCC1","CAV1","EFEMP1","PON1","PRR12","SNX7","STX18","ACAD8","AGK","BRD4","CACNA2D1","CAPS","CCDC58","CIRH1A","IRGQ","METTL14","MRPS24","NOL6","PPIF","PRKCD","PRKCI","PTGES3","RAB18","RPL37A","SNCG","THY1","TM9SF3","UQCC2","ZNF185","IGHV3-15")
+plot_volcano_2(dep, contrast=cont, add_names=T,label_size=4,adjusted = F)
+```
+
+```{r T4}
+results %>%  select(starts_with("name") | starts_with(cont)) %>% filter(name %in% unique_vec) %>% arrange(across(ends_with("p.adj"))) %>% mutate(across(2:3, format, scientific = T, digits = 2)) %>% dplyr::rename_with(~ tolower(gsub(paste0(cont,"_"), "", .x)), .cols = starts_with(cont)) %>% DT::datatable()
+```
+
+## Gene ontology {.tabset .tabset-fade .tabset-pills}
+
+***
+```{r gene_name}
+# ## Background list
+# write.table(results$name,file = "gene_name_GO_background.txt", sep="\t", quote=FALSE, row.names=FALSE, col.names = F)
+# 
+# ## Significant list
+# results %>% filter(significant) -> gene_name
+# write.table(gene_name$name,file = "gene_name_GO_T1_TME1.txt", sep="\t", quote=FALSE, row.names=FALSE, col.names = F)
+```
+
+### Biological Process
+
+```{r BP, warning=FALSE, fig.height = 7, fig.width = 10}
+# A treemap R script produced by the REVIGO server at http://revigo.irb.hr/
+# If you found REVIGO useful in your work, please cite the following reference:
+# Supek F et al. "REVIGO summarizes and visualizes long lists of Gene Ontology
+# terms" PLoS ONE 2011. doi:10.1371/journal.pone.0021800
+
+# author: Anton Kratz <anton.kratz@gmail.com>, RIKEN Omics Science Center, Functional Genomics Technology Team, Japan
+# created: Fri, Nov 02, 2012  7:25:52 PM
+# last change: Fri, Nov 09, 2012  3:20:01 PM
+
+# -----------------------------------------------------------------------------
+# If you don't have the treemap package installed, uncomment the following line:
+# install.packages( "treemap" );
+library(treemap) 								# treemap package by Martijn Tennekes
+
+# Set the working directory if necessary
+# setwd("C:/Users/username/workingdir");
+
+# --------------------------------------------------------------------------
+# Here is your data from REVIGO. Scroll down for plot configuration options.
+
+revigo.names <- c("term_ID","description","freqInDbPercent","value","uniqueness","dispensability","representative");
+revigo.data <- rbind(c("GO:0008334","histone mRNA metabolic process",0.006,3.040,1.000,0.000,"histone mRNA metabolic process"),
+c("GO:1902172","regulation of keratinocyte apoptotic process",0.001,3.273,0.387,0.000,"regulation of keratinocyte apoptotic process"));
+
+stuff <- data.frame(revigo.data);
+names(stuff) <- revigo.names;
+
+stuff$value <- as.numeric( as.character(stuff$value) );
+stuff$freqInDbPercent <- as.numeric( as.character(stuff$freqInDbPercent) );
+stuff$uniqueness <- as.numeric( as.character(stuff$uniqueness) );
+stuff$dispensability <- as.numeric( as.character(stuff$dispensability) );
+
+
+
+# check the tmPlot command documentation for all possible parameters - there are a lot more
+treemap(
+  stuff,
+  index = c("representative","description"),
+  vSize = "value",
+  type = "categorical",
+  vColor = "representative",
+  fontsize.labels=c(16,14),
+  title = "REVIGO TreeMap",
+  inflate.labels = FALSE,      # set this to TRUE for space-filling group labels - good for posters
+  lowerbound.cex.labels = 0,
+  palette = "Set1",
+  align.labels=list(
+        c("center", "top"), 
+        c("center", "bottom")
+        ),# try to draw as many labels as possible (still, some small squares may not get a label)
+  position.legend = "none"
+)
+
+
+
+
+```
+
+
+
+## Multiple sample ANOVA test {.tabset .tabset-fade .tabset-pills}
+
+***
+
+In this analysis, instead of comparing each possible condition individually, I used a multiple sample **ANOVA** test to observe the overall pattern of change.
+
+```{r ANOVA, out.width = "200%"}
+knitr::include_graphics(here::here("data/HeatMap_t1_tme1.png"))
+```
+
+### Cluster Table
+
+```{r ANOVA_table}
+# anova_table %>%
+#   group_by(Cluster) %>%
+#   summarise(n = n())
+
+name_cluster_order <- anova_table %>% 
+  select(starts_with("T")) %>% colnames()
+
+anova_table %>% 
+  select(!c(Majority.protein.IDs, ANOVA.Significant, Protein.names, Protein.IDs)) %>% 
+  dplyr::rename(Log.ANOVA.p.value = X.Log.ANOVA.p.value) %>% 
+  pivot_longer(cols = starts_with("T"), names_to = "Samples", values_to = "Intensity") %>% 
+  mutate(across(contains(c(".value", "Intensity")), format, scientific = T, digits = 2)) %>% 
+  mutate(Cluster = case_when(Cluster == "Cluster -351" ~ "Cluster 1",
+                             Cluster == "Cluster -347" ~ "Cluster 2",
+                             Cluster == "Cluster -349" ~ "Cluster 3",
+                             Cluster == "Cluster -348" ~ "Cluster 4")) %>% 
+  relocate(Cluster, Samples, Intensity) %>% 
+  DT::datatable()
+  
+```
+
+
+### Cluster Profile {.tabset}
+
+#### Cluster 1
+
+```{r Cluster_1, warning=FALSE, message=FALSE, fig.height = 8, fig.width = 8}
+anova_table %>% 
+  filter(Cluster == "Cluster -351") %>% 
+  select(starts_with("T") | contains("Gene")) %>% 
+  pivot_longer(!Gene.names, names_to ="Sample", values_to = "Intensity") %>% 
+  ggplot(mapping = aes(x = Sample, y = Intensity, group = Gene.names)) + 
+  geom_line(color = "turquoise") + 
+  geom_smooth(aes(group = 1)) + 
+  scale_x_discrete(limits = name_cluster_order) +
+  theme(axis.title = element_text(size = 16, face = "bold"),
+        axis.text = element_text(size = 14), 
+        axis.text.x = element_text(angle = 90), 
+        plot.title = element_text(size = 20, face = "bold", hjust = 0.5),
+        panel.background = element_rect(fill = NA)) +
+  labs(title = "Cluster 1", x = "Samples", y = "log2 Intensity") + 
+  theme(axis.line = element_line(size = 0.4, linetype = "solid"), 
+        axis.text.x = element_text(vjust = 0.5))
+```
+
+#### Cluster 2
+
+```{r Cluster_2, warning=FALSE, message=FALSE, fig.height = 8, fig.width = 8}
+anova_table %>% 
+  filter(Cluster == "Cluster -347") %>% 
+  select(starts_with("T") | contains("Gene")) %>% 
+  pivot_longer(!Gene.names, names_to ="Sample", values_to = "Intensity") %>% 
+  ggplot(mapping = aes(x = Sample, y = Intensity, group = Gene.names)) + 
+  geom_line(color = "khaki4") + 
+  geom_smooth(aes(group = 1)) + 
+  scale_x_discrete(limits = name_cluster_order) +
+  theme(axis.title = element_text(size = 16, face = "bold"),
+        axis.text = element_text(size = 14), 
+        axis.text.x = element_text(angle = 90), 
+        plot.title = element_text(size = 20, face = "bold", hjust = 0.5),
+        panel.background = element_rect(fill = NA)) +
+  labs(title = "Cluster 2", x = "Samples", y = "log2 Intensity") + 
+  theme(axis.line = element_line(size = 0.4, linetype = "solid"), 
+        axis.text.x = element_text(vjust = 0.5))
+```
+
+#### Cluster 3
+
+```{r Cluster_3, warning=FALSE, message=FALSE, fig.height = 8, fig.width = 8}
+anova_table %>% 
+  filter(Cluster == "Cluster -349") %>% 
+  select(starts_with("T") | contains("Gene")) %>% 
+  pivot_longer(!Gene.names, names_to ="Sample", values_to = "Intensity") %>% 
+  ggplot(mapping = aes(x = Sample, y = Intensity, group = Gene.names)) + 
+  geom_line(color = "firebrick3") + 
+  geom_smooth(aes(group = 1)) + 
+  scale_x_discrete(limits = name_cluster_order) +
+  theme(axis.title = element_text(size = 16, face = "bold"),
+        axis.text = element_text(size = 14), 
+        axis.text.x = element_text(angle = 90), 
+        plot.title = element_text(size = 20, face = "bold", hjust = 0.5),
+        panel.background = element_rect(fill = NA)) +
+  labs(title = "Cluster 3", x = "Samples", y = "log2 Intensity") + 
+  theme(axis.line = element_line(size = 0.4, linetype = "solid"), 
+        axis.text.x = element_text(vjust = 0.5))
+```
+
+#### Cluster 4
+
+```{r Cluster_4, warning=FALSE, message=FALSE, fig.height = 8, fig.width = 8}
+anova_table %>% 
+  filter(Cluster == "Cluster -348") %>% 
+  select(starts_with("T") | contains("Gene")) %>% 
+  pivot_longer(!Gene.names, names_to ="Sample", values_to = "Intensity") %>% 
+  ggplot(mapping = aes(x = Sample, y = Intensity, group = Gene.names)) + 
+  geom_line(color = "pink2") + 
+  geom_smooth(aes(group = 1)) + 
+  scale_x_discrete(limits = name_cluster_order) +
+  theme(axis.title = element_text(size = 16, face = "bold"),
+        axis.text = element_text(size = 14), 
+        axis.text.x = element_text(angle = 90), 
+        plot.title = element_text(size = 20, face = "bold", hjust = 0.5),
+        panel.background = element_rect(fill = NA)) +
+  labs(title = "Cluster 4", x = "Samples", y = "log2 Intensity") + 
+  theme(axis.line = element_line(size = 0.4, linetype = "solid"), 
+        axis.text.x = element_text(vjust = 0.5))
+```
+
+### Gene Ontology {.tabset}
+
+```{r}
+b <- anova_table %>% select(Gene.names) %>% mutate(Gene.names = gsub(pattern = ";.*$", replacement = "", Gene.names)) %>% pull(Gene.names)
+
+write.table(b,file = "gene_name_BP_anova.txt", sep="\t", quote=FALSE, row.names=FALSE, col.names = F)
+```
+
+#### BP
+
+```{r BP_anova, warning=FALSE, fig.height = 7, fig.width = 10}
+library(treemap) 								# treemap package by Martijn Tennekes
+
+# Set the working directory if necessary
+# setwd("C:/Users/username/workingdir");
+
+# --------------------------------------------------------------------------
+# Here is your data from REVIGO. Scroll down for plot configuration options.
+
+revigo.names <- c("term_ID","description","freqInDbPercent","value","uniqueness","dispensability","representative");
+revigo.data <- rbind(c("GO:0006936","muscle contraction",0.039,3.790,0.935,0.000,"muscle contraction"),
+c("GO:0003012","muscle system process",0.047,3.183,0.934,0.626,"muscle contraction"),
+c("GO:0022603","regulation of anatomical structure morphogenesis",0.882,5.499,0.743,0.000,"regulation of anatomical structure morphogenesis"),
+c("GO:0050878","regulation of body fluid levels",0.082,3.597,0.851,0.193,"regulation of anatomical structure morphogenesis"),
+c("GO:0010810","regulation of cell-substrate adhesion",0.036,3.334,0.867,0.193,"regulation of anatomical structure morphogenesis"),
+c("GO:0051346","negative regulation of hydrolase activity",0.274,3.592,0.856,0.215,"regulation of anatomical structure morphogenesis"),
+c("GO:0051241","negative regulation of multicellular organismal process",0.181,5.166,0.853,0.221,"regulation of anatomical structure morphogenesis"),
+c("GO:0032101","regulation of response to external stimulus",0.211,3.827,0.772,0.225,"regulation of anatomical structure morphogenesis"),
+c("GO:0002682","regulation of immune system process",0.288,4.640,0.848,0.231,"regulation of anatomical structure morphogenesis"),
+c("GO:0010769","regulation of cell morphogenesis involved in differentiation",0.015,3.334,0.795,0.635,"regulation of anatomical structure morphogenesis"),
+c("GO:0022610","biological adhesion",0.553,3.921,1.000,0.000,"biological adhesion"),
+c("GO:0030198","extracellular matrix organization",0.062,5.975,0.977,0.000,"extracellular matrix organization"),
+c("GO:0043062","extracellular structure organization",0.064,6.527,0.977,0.325,"extracellular matrix organization"),
+c("GO:0050896","response to stimulus",12.913,3.538,1.000,0.000,"response to stimulus"),
+c("GO:0072376","protein activation cascade",0.004,8.213,0.866,0.000,"protein activation cascade"),
+c("GO:0043687","post-translational protein modification",0.028,4.165,0.989,0.141,"protein activation cascade"),
+c("GO:0006959","humoral immune response",0.043,4.991,0.758,0.198,"protein activation cascade"),
+c("GO:0006952","defense response",0.774,4.056,0.787,0.283,"protein activation cascade"),
+c("GO:0002526","acute inflammatory response",0.012,3.597,0.792,0.427,"protein activation cascade"),
+c("GO:0006956","complement activation",0.025,4.479,0.595,0.617,"protein activation cascade"),
+c("GO:0045087","innate immune response",0.135,3.491,0.655,0.690,"protein activation cascade"),
+c("GO:0002576","platelet degranulation",0.002,3.547,0.998,0.005,"platelet degranulation"),
+c("GO:0007155","cell adhesion",0.540,3.921,0.954,0.008,"cell adhesion"),
+c("GO:0070527","platelet aggregation",0.006,3.378,0.651,0.690,"cell adhesion"),
+c("GO:0030029","actin filament-based process",0.368,3.597,0.997,0.009,"actin filament-based process"));
+
+stuff <- data.frame(revigo.data);
+names(stuff) <- revigo.names;
+
+stuff$value <- as.numeric( as.character(stuff$value) );
+stuff$freqInDbPercent <- as.numeric( as.character(stuff$freqInDbPercent) );
+stuff$uniqueness <- as.numeric( as.character(stuff$uniqueness) );
+stuff$dispensability <- as.numeric( as.character(stuff$dispensability) );
+
+
+# check the tmPlot command documentation for all possible parameters - there are a lot more
+treemap(
+  stuff,
+  index = c("representative","description"),
+  vSize = "value",
+  type = "categorical",
+  vColor = "representative",
+  fontsize.labels=c(16,14),
+  title = "REVIGO TreeMap",
+  inflate.labels = FALSE,      # set this to TRUE for space-filling group labels - good for posters
+  lowerbound.cex.labels = 0,
+  palette = "Set1",
+  align.labels=list(
+        c("center", "top"), 
+        c("center", "bottom")
+        ),# try to draw as many labels as possible (still, some small squares may not get a label)
+  position.legend = "none"
+)
+
+```
+
+
+#### MF
+
+```{r MF_anova, warning=FALSE, fig.height = 7, fig.width = 10}
+library(treemap) 								# treemap package by Martijn Tennekes
+
+# Set the working directory if necessary
+# setwd("C:/Users/username/workingdir");
+
+# --------------------------------------------------------------------------
+# Here is your data from REVIGO. Scroll down for plot configuration options.
+revigo.names <- c("term_ID","description","freqInDbPercent","value","uniqueness","dispensability","representative");
+revigo.data <- rbind(c("GO:0005198","structural molecule activity",2.916,4.932,1.000,0.000,"structural molecule activity"),
+c("GO:0005201","extracellular matrix structural constituent",0.035,7.001,0.925,0.000,"extracellular matrix structural constituent"),
+c("GO:0008307","structural constituent of muscle",0.004,4.360,0.925,0.381,"extracellular matrix structural constituent"),
+c("GO:0008092","cytoskeletal protein binding",0.859,4.767,0.689,0.000,"cytoskeletal protein binding"),
+c("GO:0005516","calmodulin binding",0.127,3.863,0.719,0.522,"cytoskeletal protein binding"),
+c("GO:0003779","actin binding",0.451,4.607,0.652,0.587,"cytoskeletal protein binding"),
+c("GO:0061134","peptidase regulator activity",0.179,3.996,0.687,0.000,"peptidase regulator activity"),
+c("GO:0008270","zinc ion binding",3.633,3.220,0.952,0.068,"zinc ion binding"));
+
+stuff <- data.frame(revigo.data);
+names(stuff) <- revigo.names;
+
+stuff$value <- as.numeric( as.character(stuff$value) );
+stuff$freqInDbPercent <- as.numeric( as.character(stuff$freqInDbPercent) );
+stuff$uniqueness <- as.numeric( as.character(stuff$uniqueness) );
+stuff$dispensability <- as.numeric( as.character(stuff$dispensability) );
+
+
+# check the tmPlot command documentation for all possible parameters - there are a lot more
+treemap(
+  stuff,
+  index = c("representative","description"),
+  vSize = "value",
+  type = "categorical",
+  vColor = "representative",
+  fontsize.labels=c(16,14),
+  title = "REVIGO TreeMap",
+  inflate.labels = FALSE,      # set this to TRUE for space-filling group labels - good for posters
+  lowerbound.cex.labels = 0,
+  palette = "Set1",
+  align.labels=list(
+        c("center", "top"), 
+        c("center", "bottom")
+        ),# try to draw as many labels as possible (still, some small squares may not get a label)
+  position.legend = "none"
+)
+```
+
+## {-}
+
+***

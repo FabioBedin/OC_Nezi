@@ -1,0 +1,563 @@
+---
+title: "Integration old analysis T1 vs T2"
+author: "Fabio Bedin | MS-Unit"
+output: html_document
+---
+# Integration old analysis
+
+***
+
+```{r librerie, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(fig.align = "center")
+library("MBQN")
+library("dplyr")
+library("tidyr")
+library("DEP")
+library("SummarizedExperiment")
+library("preprocessCore")
+library("tibble")
+library("ggplot2")
+library("enrichR")
+library("DT")
+library("stringr")
+library("patchwork")
+library("here")
+library("datapasta")
+library("visdat")
+library("naniar")
+```
+
+```{r Custom Functions}
+source(here::here("code/custom_functions.R"))
+
+```
+
+Summary of previeus results of **unique** proteins:
+
+```{r summary, out.width = "150%"}
+knitr::include_graphics(here::here("data/Nezi_unique_t1_Vs_t2.png"))
+```
+
+***
+
+## DEP analysis comparisons {.tabset .tabset-fade .tabset-pills}
+
+First, I analyzed the data by imputing the missing values. 
+This gave me the possibility to get significant proteins even with more stringent filters: **FDR = 0.05** and **FC = 1**.
+New results from single patient comparisons are then shown, as well as a direct visualization of how unique proteins in the first analysis behave in this second.
+
+```{r load data}
+data <- read.csv(here::here("data/proteinGroups.txt"), header = TRUE,stringsAsFactors = FALSE, sep = "\t")
+
+data <- data[data$Reverse != "+" & data$Potential.contaminant != "+" & data$Only.identified.by.site != "+",]
+
+data_unique <- make_unique(data, "Gene.names", "Protein.IDs", delim = ";")
+
+```
+
+
+```{r Data wrangling, message=FALSE, warning=FALSE, results='hide'}
+expdesign <- read.table(here::here("data/expdesign_old_exp.tsv"), header = T, stringsAsFactors = F)
+
+cond_1<-"T1_P1"
+cond_2<-"T2_P1"
+
+conditions<-c(cond_1,cond_2)
+
+expdesign <- subset(expdesign, condition %in% conditions)
+
+test<- paste(cond_1,cond_2,sep="_vs_")
+
+columns<-match(paste("LFQ.intensity.",expdesign$label,sep=""),colnames(data_unique))
+
+data_se <- make_se(data_unique, columns, expdesign)
+
+```
+
+### `r test`
+
+```{r analysis, message=FALSE, warning=FALSE, results='hide'}
+data_filt <- filter_missval(data_se, thr = 1)
+
+set.seed(20210520)
+data_imp_man <- impute(data_filt, fun = "man", shift = 1.8, scale = 0.3)
+
+data_diff <- test_diff_BH(data_imp_man, type = "all")
+
+dep <- add_rejections(data_diff, alpha = 0.05, lfc = 1)
+
+results<-get_results(dep)
+```
+
+There are **`r results %>% filter(significant) %>% nrow()`** significant proteins in **`r test`** comparison.
+
+
+#### **Visualization of the results:** {.tabset}
+
+***
+
+##### Volcano Plot
+
+```{r V1,warning=FALSE, fig.height = 8, fig.width = 8}
+plot_volcano(dep, contrast=test, add_names=T,label_size=4,adjusted = F)
+```
+
+##### Results Table
+
+```{r significant_table}
+results %>% 
+  filter(significant) %>%
+  select(-significant, -ends_with("centered")) %>% 
+  pivot_longer(
+   cols = ends_with(c("p.val", "p.adj", "significant", "ratio")),
+   names_to = c("comparison", ".value"),
+   names_pattern = "(.*_.*_.*_.*_.*)_(.*)") %>% 
+  arrange(name, p.adj) %>% 
+  relocate(comparison) %>% 
+  select(-comparison) %>% 
+  mutate(across(ends_with(c("p.val", "p.adj")), format, scientific = T, digits = 2)) %>% 
+  mutate(significant = str_to_title(significant)) %>% 
+  DT::datatable(options = list(
+  columnDefs = list(list(className = 'dt-center', targets = 1:6)),
+  pageLength = 10))
+```
+
+##### Old plot + Unique
+
+```{r V2,warning=FALSE, fig.height = 8, fig.width = 8}
+unique_vec <- c("ABCA8", "PLSCR1", "SMNDC1", "AFTPH", "AHDC1", "CLDN1", "CTSL", "DMXL1", "FAM83H", "FNBP1L", "PARD3B", "STX18", "CCDC80", "GSDMA", "IGKV1D-13", "METTL14", "PIP", "PLEKHO2", "PLSCR1", "TAB1")
+
+plot_volcano_3(dep, contrast=test, add_names=T,label_size=4,adjusted = F)
+```
+
+##### Unique Table
+
+```{r T2}
+results %>%  
+  select(starts_with("name") | starts_with(test)) %>% 
+  filter(name %in% unique_vec) %>% 
+  arrange(across(ends_with("p.adj"))) %>%
+  mutate(across(2:3, format, scientific = T, digits = 2)) %>% 
+  dplyr::rename_with(~ tolower(gsub(paste0(test,"_"), "", .x)), .cols = starts_with(test)) %>% 
+  DT::datatable()
+```
+
+
+
+```{r Data wrangling_2, message=FALSE, warning=FALSE, results='hide'}
+expdesign <- read.table(here::here("data/expdesign_old_exp.tsv"), header = T, stringsAsFactors = F)
+
+cond_1<-"T1_P2"
+cond_2<-"T2_P2"
+
+conditions<-c(cond_1,cond_2)
+
+expdesign <- subset(expdesign, condition %in% conditions)
+
+test<- paste(cond_1,cond_2,sep="_vs_")
+
+columns<-match(paste("LFQ.intensity.",expdesign$label,sep=""),colnames(data_unique))
+
+data_se <- make_se(data_unique, columns, expdesign)
+
+```
+
+### `r test`
+
+
+```{r analysis_2, message=FALSE, warning=FALSE, results='hide'}
+data_filt <- filter_missval(data_se, thr = 1)
+
+set.seed(20210520)
+data_imp_man <- impute(data_filt, fun = "man", shift = 1.8, scale = 0.3)
+
+data_diff <- test_diff_BH(data_imp_man, type = "all")
+
+dep <- add_rejections(data_diff, alpha = 0.05, lfc = 1)
+
+results<-get_results(dep)
+```
+
+There are **`r results %>% filter(significant) %>% nrow()`** significant proteins in **`r test`** comparison.
+
+
+#### **Visualization of the results:** {.tabset}
+
+***
+
+##### Volcano Plot
+
+```{r V31,warning=FALSE, fig.height = 8, fig.width = 8}
+plot_volcano(dep, contrast=test, add_names=T,label_size=4,adjusted = F)
+```
+
+##### Results Table
+
+```{r significant_table_2}
+results %>% 
+  filter(significant) %>%
+  select(-significant, -ends_with("centered")) %>% 
+  pivot_longer(
+   cols = ends_with(c("p.val", "p.adj", "significant", "ratio")),
+   names_to = c("comparison", ".value"),
+   names_pattern = "(.*_.*_.*_.*_.*)_(.*)") %>% 
+  arrange(name, p.adj) %>% 
+  relocate(comparison) %>% 
+  select(-comparison) %>% 
+  mutate(across(ends_with(c("p.val", "p.adj")), format, scientific = T, digits = 2)) %>% 
+  mutate(significant = str_to_title(significant)) %>% 
+  DT::datatable(options = list(
+  columnDefs = list(list(className = 'dt-center', targets = 1:6)),
+  pageLength = 10))
+```
+
+##### Old plot + Unique
+
+```{r V4,warning=FALSE, fig.height = 8, fig.width = 8}
+unique_vec <- c("ABCA8", "PLSCR1", "SMNDC1", "AFTPH", "AHDC1", "CLDN1", "CTSL", "DMXL1", "FAM83H", "FNBP1L", "PARD3B", "STX18", "LSM3", "LZIC", "POP7", "XPO4")
+
+plot_volcano_3(dep, contrast=test, add_names=T,label_size=4,adjusted = F)
+```
+
+##### Unique Table
+
+```{r T4}
+results %>%  select(starts_with("name") | starts_with(test)) %>% filter(name %in% unique_vec) %>% arrange(across(ends_with("p.adj"))) %>% mutate(across(2:3, format, scientific = T, digits = 2)) %>% dplyr::rename_with(~ tolower(gsub(paste0(test,"_"), "", .x)), .cols = starts_with(test)) %>% DT::datatable()
+```
+
+
+```{r Data wrangling_3, message=FALSE, warning=FALSE, results='hide'}
+expdesign <- read.table(here::here("data/expdesign_old_exp.tsv"), header = T, stringsAsFactors = F)
+
+cond_1<-"T1_P3"
+cond_2<-"T2_P3"
+
+conditions<-c(cond_1,cond_2)
+
+expdesign <- subset(expdesign, condition %in% conditions)
+
+test<- paste(cond_1,cond_2,sep="_vs_")
+
+columns<-match(paste("LFQ.intensity.",expdesign$label,sep=""),colnames(data_unique))
+
+data_se <- make_se(data_unique, columns, expdesign)
+
+```
+
+### `r test`
+
+
+```{r analysis_3, message=FALSE, warning=FALSE, results='hide'}
+data_filt <- filter_missval(data_se, thr = 1)
+
+set.seed(20210520)
+data_imp_man <- impute(data_filt, fun = "man", shift = 1.8, scale = 0.3)
+
+data_diff <- test_diff_BH(data_imp_man, type = "all")
+
+dep <- add_rejections(data_diff, alpha = 0.05, lfc = 1)
+
+results<-get_results(dep)
+```
+
+There are **`r results %>% filter(significant) %>% nrow()`** significant proteins in **`r test`** comparison.
+
+#### **Visualization of the results:** {.tabset}
+
+***
+
+##### Volcano Plot
+
+```{r V32,warning=FALSE, fig.height = 8, fig.width = 8}
+plot_volcano(dep, contrast=test, add_names=T,label_size=4,adjusted = F)
+```
+
+##### Results Table
+
+```{r significant_table_3}
+results %>% 
+  filter(significant) %>%
+  select(-significant, -ends_with("centered")) %>% 
+  pivot_longer(
+   cols = ends_with(c("p.val", "p.adj", "significant", "ratio")),
+   names_to = c("comparison", ".value"),
+   names_pattern = "(.*_.*_.*_.*_.*)_(.*)") %>% 
+  arrange(name, p.adj) %>% 
+  relocate(comparison) %>% 
+  select(-comparison) %>% 
+  mutate(across(ends_with(c("p.val", "p.adj")), format, scientific = T, digits = 2)) %>% 
+  mutate(significant = str_to_title(significant)) %>% 
+  DT::datatable(options = list(
+  columnDefs = list(list(className = 'dt-center', targets = 1:6)),
+  pageLength = 10))
+```
+
+
+##### Old plot + Unique
+
+```{r V43,warning=FALSE, fig.height = 8, fig.width = 8}
+unique_vec <- c("ABCA8", "PLSCR1", "SMNDC1", "AFTPH", "AHDC1", "CLDN1", "CTSL", "DMXL1", "FAM83H", "FNBP1L", "PARD3B", "STX18", "GTF3C1", "MBLAC2", "RMND1", "RPL37A", "WISP2")
+
+plot_volcano_3(dep, contrast=test, add_names=T,label_size=4,adjusted = F)
+```
+
+##### Unique Table
+
+```{r T43}
+results %>%  select(starts_with("name") | starts_with(test)) %>% filter(name %in% unique_vec) %>% arrange(across(ends_with("p.adj"))) %>% mutate(across(2:3, format, scientific = T, digits = 2)) %>% dplyr::rename_with(~ tolower(gsub(paste0(test,"_"), "", .x)), .cols = starts_with(test)) %>% DT::datatable()
+```
+
+
+
+```{r Data wrangling_4, message=FALSE, warning=FALSE, results='hide'}
+expdesign <- read.table(here::here("data/expdesign_old_exp.tsv"), header = T, stringsAsFactors = F)
+
+cond_1<-"T1_P4"
+cond_2<-"T2_P4"
+
+conditions<-c(cond_1,cond_2)
+
+expdesign <- subset(expdesign, condition %in% conditions)
+
+test<- paste(cond_1,cond_2,sep="_vs_")
+
+columns<-match(paste("LFQ.intensity.",expdesign$label,sep=""),colnames(data_unique))
+
+data_se <- make_se(data_unique, columns, expdesign)
+
+```
+
+### `r test`
+
+
+```{r analysis_4, message=FALSE, warning=FALSE, results='hide'}
+data_filt <- filter_missval(data_se, thr = 1)
+
+set.seed(20210520)
+data_imp_man <- impute(data_filt, fun = "man", shift = 1.8, scale = 0.3)
+
+data_diff <- test_diff_BH(data_imp_man, type = "all")
+
+dep <- add_rejections(data_diff, alpha = 0.05, lfc = 1)
+
+results<-get_results(dep)
+```
+
+There are **`r results %>% filter(significant) %>% nrow()`** significant proteins in **`r test`** comparison.
+
+
+#### **Visualization of the results:** {.tabset}
+
+***
+
+##### Volcano Plot
+
+```{r V33,warning=FALSE, fig.height = 8, fig.width = 8}
+plot_volcano(dep, contrast=test, add_names=T,label_size=4,adjusted = F)
+```
+
+##### Results Table
+
+
+```{r significant_table_4}
+results %>% 
+  filter(significant) %>%
+  select(-significant, -ends_with("centered")) %>% 
+  pivot_longer(
+   cols = ends_with(c("p.val", "p.adj", "significant", "ratio")),
+   names_to = c("comparison", ".value"),
+   names_pattern = "(.*_.*_.*_.*_.*)_(.*)") %>% 
+  arrange(name, p.adj) %>% 
+  relocate(comparison) %>% 
+  select(-comparison) %>% 
+  mutate(across(ends_with(c("p.val", "p.adj")), format, scientific = T, digits = 2)) %>% 
+  mutate(significant = str_to_title(significant)) %>% 
+  DT::datatable(options = list(
+  columnDefs = list(list(className = 'dt-center', targets = 1:6)),
+  pageLength = 10))
+```
+
+##### Old plot + Unique
+
+```{r V44,warning=FALSE, fig.height = 8, fig.width = 8}
+unique_vec <- c("ABCA8", "PLSCR1", "SMNDC1", "AFTPH", "AHDC1", "CLDN1", "CTSL", "DMXL1", "FAM83H", "FNBP1L", "PARD3B", "STX18", "ABHD16A", "ATP5J", "CHMP2A", "FAM98B", "FBP1", "GIPC1", "HLA-DQB1", "MRPL39", "NUDT15", "PFN2", "PLP2", "RPLP1", "SYPL1", "THG1L", "TRIM23")
+
+plot_volcano_3(dep, contrast=test, add_names=T,label_size=4,adjusted = F)
+```
+
+##### Unique Table
+
+```{r T44}
+results %>%  select(starts_with("name") | starts_with(test)) %>% filter(name %in% unique_vec) %>% arrange(across(ends_with("p.adj"))) %>% mutate(across(2:3, format, scientific = T, digits = 2)) %>% dplyr::rename_with(~ tolower(gsub(paste0(test,"_"), "", .x)), .cols = starts_with(test)) %>% DT::datatable()
+```
+
+
+
+```{r Data wrangling_5, message=FALSE, warning=FALSE, results='hide'}
+expdesign <- read.table(here::here("data/expdesign_old_exp.tsv"), header = T, stringsAsFactors = F)
+
+cond_1<-"T1_P5"
+cond_2<-"T2_P5"
+
+conditions<-c(cond_1,cond_2)
+
+expdesign <- subset(expdesign, condition %in% conditions)
+
+test<- paste(cond_1,cond_2,sep="_vs_")
+
+columns<-match(paste("LFQ.intensity.",expdesign$label,sep=""),colnames(data_unique))
+
+data_se <- make_se(data_unique, columns, expdesign)
+
+```
+
+### `r test`
+
+
+```{r analysis_5, message=FALSE, warning=FALSE, results='hide'}
+data_filt <- filter_missval(data_se, thr = 1)
+
+set.seed(20210520)
+data_imp_man <- impute(data_filt, fun = "man", shift = 1.8, scale = 0.3)
+
+data_diff <- test_diff_BH(data_imp_man, type = "all")
+
+dep <- add_rejections(data_diff, alpha = 0.05, lfc = 1)
+
+results<-get_results(dep)
+```
+
+There are **`r results %>% filter(significant) %>% nrow()`** significant proteins in **`r test`** comparison.
+
+
+#### **Visualization of the results:** {.tabset}
+
+***
+
+##### Volcano Plot
+
+```{r V34,warning=FALSE, fig.height = 8, fig.width = 8}
+plot_volcano(dep, contrast=test, add_names=T,label_size=4,adjusted = F)
+```
+
+##### Results Table
+
+
+```{r significant_table_5}
+results %>% 
+  filter(significant) %>%
+  select(-significant, -ends_with("centered")) %>% 
+  pivot_longer(
+   cols = ends_with(c("p.val", "p.adj", "significant", "ratio")),
+   names_to = c("comparison", ".value"),
+   names_pattern = "(.*_.*_.*_.*_.*)_(.*)") %>% 
+  arrange(name, p.adj) %>% 
+  relocate(comparison) %>% 
+  select(-comparison) %>% 
+  mutate(across(ends_with(c("p.val", "p.adj")), format, scientific = T, digits = 2)) %>% 
+  mutate(significant = str_to_title(significant)) %>% 
+  DT::datatable(options = list(
+  columnDefs = list(list(className = 'dt-center', targets = 1:6)),
+  pageLength = 10))
+```
+
+
+##### Old plot + Unique
+
+```{r V45,warning=FALSE, fig.height = 8, fig.width = 8}
+unique_vec <- c("ABCA8", "PLSCR1", "SMNDC1", "AFTPH", "AHDC1", "CLDN1", "CTSL", "DMXL1", "FAM83H", "FNBP1L", "PARD3B", "STX18", "FAM195B", "FCN3", "GCA", "LLPH", "MVD", "NFX1", "RANBP1", "SPOCK2", "TACO1", "TMED5", "USMG5")
+
+plot_volcano_3(dep, contrast=test, add_names=T,label_size=4,adjusted = F)
+```
+
+##### Unique Table
+
+```{r T45}
+results %>%  select(starts_with("name") | starts_with(test)) %>% filter(name %in% unique_vec) %>% arrange(across(ends_with("p.adj"))) %>% mutate(across(2:3, format, scientific = T, digits = 2)) %>% dplyr::rename_with(~ tolower(gsub(paste0(test,"_"), "", .x)), .cols = starts_with(test)) %>% DT::datatable()
+```
+
+
+
+```{r Data wrangling_7, message=FALSE, warning=FALSE, results='hide'}
+expdesign <- read.table(here::here("data/expdesign_old_exp.tsv"), header = T, stringsAsFactors = F)
+
+cond_1<-"T1_P7"
+cond_2<-"T2_P7"
+
+conditions<-c(cond_1,cond_2)
+
+expdesign <- subset(expdesign, condition %in% conditions)
+
+test<- paste(cond_1,cond_2,sep="_vs_")
+
+columns<-match(paste("LFQ.intensity.",expdesign$label,sep=""),colnames(data_unique))
+
+data_se <- make_se(data_unique, columns, expdesign)
+
+```
+
+### `r test`
+
+
+```{r analysis_7, message=FALSE, warning=FALSE, results='hide'}
+data_filt <- filter_missval(data_se, thr = 1)
+
+set.seed(20210520)
+data_imp_man <- impute(data_filt, fun = "man", shift = 1.8, scale = 0.3)
+
+data_diff <- test_diff_BH(data_imp_man, type = "all")
+
+dep <- add_rejections(data_diff, alpha = 0.05, lfc = 1)
+
+results<-get_results(dep)
+```
+
+There are **`r results %>% filter(significant) %>% nrow()`** significant proteins in **`r test`** comparison.
+
+
+#### **Visualization of the results:** {.tabset}
+
+***
+
+##### Volcano Plot
+
+```{r V35,warning=FALSE, fig.height = 8, fig.width = 8}
+plot_volcano(dep, contrast=test, add_names=T,label_size=4,adjusted = F)
+```
+
+##### Results Table
+
+
+```{r significant_table_7}
+results %>% 
+  filter(significant) %>%
+  select(-significant, -ends_with("centered")) %>% 
+  pivot_longer(
+   cols = ends_with(c("p.val", "p.adj", "significant", "ratio")),
+   names_to = c("comparison", ".value"),
+   names_pattern = "(.*_.*_.*_.*_.*)_(.*)") %>% 
+  arrange(name, p.adj) %>% 
+  relocate(comparison) %>% 
+  select(-comparison) %>% 
+  mutate(across(ends_with(c("p.val", "p.adj")), format, scientific = T, digits = 2)) %>% 
+  mutate(significant = str_to_title(significant)) %>% 
+  DT::datatable(options = list(
+  columnDefs = list(list(className = 'dt-center', targets = 1:6)),
+  pageLength = 10))
+```
+
+##### Old plot + Unique
+
+```{r V47,warning=FALSE, fig.height = 8, fig.width = 8}
+unique_vec <- c("ABCA8", "PLSCR1", "SMNDC1", "AFTPH", "AHDC1", "CLDN1", "CTSL", "DMXL1", "FAM83H", "FNBP1L", "PARD3B", "STX18", "BIRC6", "LTBP3", "VAMP3", "LTBP4")
+
+plot_volcano_3(dep, contrast=test, add_names=T,label_size=4,adjusted = F)
+```
+
+##### Unique Table
+
+```{r T47}
+results %>%  select(starts_with("name") | starts_with(test)) %>% filter(name %in% unique_vec) %>% arrange(across(ends_with("p.adj"))) %>% mutate(across(2:3, format, scientific = T, digits = 2)) %>% dplyr::rename_with(~ tolower(gsub(paste0(test,"_"), "", .x)), .cols = starts_with(test)) %>% DT::datatable()
+```
+
+## {-}
