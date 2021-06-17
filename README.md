@@ -1,4 +1,4 @@
-# test_project
+# OC Nezi
 
 A [workflowr][] project.
 
