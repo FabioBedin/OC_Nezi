@@ -9,7 +9,6 @@ output: html_document
 ***
 
 ```{r librerie, message=FALSE, warning=FALSE}
-#set.seed(20210520)
 knitr::opts_chunk$set(fig.align = "center")
 library("MBQN")
 library("dplyr")
@@ -42,7 +41,7 @@ data <- read.csv(here::here("data/proteinGroups.txt"), header = TRUE,stringsAsFa
 
 expdesign <- read.table(here::here("data/expdesign_SI_S_R.tsv"), header = T, stringsAsFactors = F)
 
-anova_table <- read.table(here::here("data/anova_table_t2_tme2.txt"), header = T, stringsAsFactors = F, sep = "\t")
+anova_table <- read.table(here::here("data/anova_table_t2_tme2_filt_1500.txt"), header = T, stringsAsFactors = F, sep = "\t")
 
 conditions<-c("T2_IS","T2_S","T2_R","TME2_IS","TME2_S","TME2_R")
 
@@ -103,11 +102,11 @@ plot_missval(data_se)
 
 ***
 
-To reduce the percentage of missing data I have decided to filter samples with less then **2000** identify proteins.
+To reduce the percentage of missing data I have decided to filter samples with less then **1500** identify proteins.
 Afrer that, I also use a second strong filter to remove all the proteins that are not identify in all replicates in at least 1 groups.
 
 ```{r data_filt}
-data_filt <- filter_bad_samples(data_se, thr = 2000)
+data_filt <- filter_bad_samples(data_se, thr = 1500)
 
 data_filt <- filter_missval(data_filt, thr = 0)
 ```
@@ -151,6 +150,7 @@ To avoid this problem, we impute missing data using random draws from a manually
 
 
 ```{r mixed_imputation, message=FALSE, warning=FALSE, results='hide'}
+#set.seed(20210520)
 data_imp_man <- impute(data_filt, fun = "man", shift = 1.8, scale = 0.3)
 ```
 
@@ -170,10 +170,10 @@ Protein-wise linear models combined with empirical Bayes statistics are used for
 data_diff <- test_diff(data_imp_man, type = "all")
 ```
 
-I define sifnificant protein with **FDR = 0.01** and **FC = 1**
+I define sifnificant protein with **FDR = 0.05** and **FC = 1**
 
 ```{r Diff_prot}
-dep <- add_rejections(data_diff, alpha = 0.01, lfc = 1)
+dep <- add_rejections(data_diff, alpha = 0.05, lfc = 1)
 
 results<-get_results(dep)
 ```
@@ -348,138 +348,6 @@ plot_volcano_2(dep, contrast=cont, add_names=T,label_size=4,adjusted = F)
 results %>%  select(starts_with("name") | starts_with(cont)) %>% filter(name %in% unique_vec) %>% arrange(across(ends_with("p.adj"))) %>% mutate(across(2:3, format, scientific = T, digits = 2)) %>% dplyr::rename_with(~ tolower(gsub(paste0(cont,"_"), "", .x)), .cols = starts_with(cont)) %>% DT::datatable()
 ```
 
-## Gene ontology {.tabset .tabset-fade .tabset-pills}
-
-***
-```{r gene_name}
-# ## Background list
-# write.table(results$name,file = "gene_name_GO_background.txt", sep="\t", quote=FALSE, row.names=FALSE, col.names = F)
-# 
-# ## Significant list
-# results %>% filter(significant) -> gene_name
-# write.table(gene_name$name,file = "gene_name_GO_T2_TME2.txt", sep="\t", quote=FALSE, row.names=FALSE, col.names = F)
-```
-
-### Biological Process
-
-```{r BP, warning=FALSE, fig.height = 7, fig.width = 10}
-# A treemap R script produced by the REVIGO server at http://revigo.irb.hr/
-# If you found REVIGO useful in your work, please cite the following reference:
-# Supek F et al. "REVIGO summarizes and visualizes long lists of Gene Ontology
-# terms" PLoS ONE 2011. doi:10.1371/journal.pone.0021800
-
-# author: Anton Kratz <anton.kratz@gmail.com>, RIKEN Omics Science Center, Functional Genomics Technology Team, Japan
-# created: Fri, Nov 02, 2012  7:25:52 PM
-# last change: Fri, Nov 09, 2012  3:20:01 PM
-
-# -----------------------------------------------------------------------------
-# If you don't have the treemap package installed, uncomment the following line:
-# install.packages( "treemap" );
-library(treemap) 								# treemap package by Martijn Tennekes
-
-# Set the working directory if necessary
-# setwd("C:/Users/username/workingdir");
-
-# --------------------------------------------------------------------------
-# Here is your data from REVIGO. Scroll down for plot configuration options.
-
-revigo.names <- c("term_ID","description","freqInDbPercent","value","uniqueness","dispensability","representative");
-revigo.data <- rbind(c("GO:0002526","acute inflammatory response",0.012,3.142,1.000,0.000,"acute inflammatory response"));
-
-stuff <- data.frame(revigo.data);
-names(stuff) <- revigo.names;
-
-stuff$value <- as.numeric( as.character(stuff$value) );
-stuff$freqInDbPercent <- as.numeric( as.character(stuff$freqInDbPercent) );
-stuff$uniqueness <- as.numeric( as.character(stuff$uniqueness) );
-stuff$dispensability <- as.numeric( as.character(stuff$dispensability) );
-
-
-# check the tmPlot command documentation for all possible parameters - there are a lot more
-treemap(
-  stuff,
-  index = c("representative","description"),
-  vSize = "value",
-  type = "categorical",
-  vColor = "representative",
-  fontsize.labels=c(16,14),
-  title = "REVIGO TreeMap",
-  inflate.labels = FALSE,      # set this to TRUE for space-filling group labels - good for posters
-  lowerbound.cex.labels = 0,
-  palette = "Set1",
-  align.labels=list(
-        c("center", "top"), 
-        c("center", "bottom")
-        ),# try to draw as many labels as possible (still, some small squares may not get a label)
-  position.legend = "none"
-)
-
-
-
-
-```
-
-### Molecular funtion
-
-```{r MF, warning=FALSE, fig.height = 7, fig.width = 10}
-# A treemap R script produced by the REVIGO server at http://revigo.irb.hr/
-# If you found REVIGO useful in your work, please cite the following reference:
-# Supek F et al. "REVIGO summarizes and visualizes long lists of Gene Ontology
-# terms" PLoS ONE 2011. doi:10.1371/journal.pone.0021800
-
-# author: Anton Kratz <anton.kratz@gmail.com>, RIKEN Omics Science Center, Functional Genomics Technology Team, Japan
-# created: Fri, Nov 02, 2012  7:25:52 PM
-# last change: Fri, Nov 09, 2012  3:20:01 PM
-
-# -----------------------------------------------------------------------------
-# If you don't have the treemap package installed, uncomment the following line:
-# install.packages( "treemap" );
-library(treemap) 								# treemap package by Martijn Tennekes
-
-# Set the working directory if necessary
-# setwd("C:/Users/username/workingdir");
-
-# --------------------------------------------------------------------------
-# Here is your data from REVIGO. Scroll down for plot configuration options.
-
-revigo.names <- c("term_ID","description","freqInDbPercent","value","uniqueness","dispensability","representative");
-revigo.data <- rbind(c("GO:0071813","lipoprotein particle binding",0.004,3.277,0.264,0.000,"lipoprotein particle binding"),
-c("GO:0071814","protein-lipid complex binding",0.004,3.277,0.264,0.487,"lipoprotein particle binding"));
-
-stuff <- data.frame(revigo.data);
-names(stuff) <- revigo.names;
-
-stuff$value <- as.numeric( as.character(stuff$value) );
-stuff$freqInDbPercent <- as.numeric( as.character(stuff$freqInDbPercent) );
-stuff$uniqueness <- as.numeric( as.character(stuff$uniqueness) );
-stuff$dispensability <- as.numeric( as.character(stuff$dispensability) );
-
-
-# check the tmPlot command documentation for all possible parameters - there are a lot more
-treemap(
-  stuff,
-  index = c("representative","description"),
-  vSize = "value",
-  type = "categorical",
-  vColor = "representative",
-  fontsize.labels=c(16,14),
-  title = "REVIGO TreeMap",
-  inflate.labels = FALSE,      # set this to TRUE for space-filling group labels - good for posters
-  lowerbound.cex.labels = 0,
-  palette = "Set1",
-  align.labels=list(
-        c("center", "top"), 
-        c("center", "bottom")
-        ),# try to draw as many labels as possible (still, some small squares may not get a label)
-  position.legend = "none"
-)
-
-
-
-
-```
-
-
 ## Multiple sample ANOVA test {.tabset .tabset-fade .tabset-pills}
 
 ***
@@ -487,7 +355,7 @@ treemap(
 In this analysis, instead of comparing each possible condition individually, I used a multiple sample **ANOVA** test to observe the overall pattern of change.
 
 ```{r ANOVA, out.width = "200%"}
-knitr::include_graphics("assets/HeatMap_t2_tme2_bis.png", error = F)
+knitr::include_graphics("assets/HeatMap_t2_tme2_1500.png", error = F)
 ```
 
 ### Cluster Table
@@ -503,14 +371,12 @@ name_cluster_order <- anova_table %>%
   select(starts_with("T")) %>% colnames()
 
 anova_table %>%
-  select(!c(Majority.protein.IDs, ANOVA.Significant, Protein.names, Protein.IDs, Only.identified.by.site, Reverse, Potential.contaminant)) %>% 
+  select(!c(Majority.protein.IDs, ANOVA.Significant, Protein.names, Protein.IDs)) %>% 
   dplyr::rename(Log.ANOVA.p.value = X.Log.ANOVA.p.value) %>% 
   pivot_longer(cols = starts_with("T"), names_to = "Samples", values_to = "Intensity") %>% 
   mutate(across(contains(c(".value", "Intensity")), format, scientific = T, digits = 2)) %>% 
-  mutate(Cluster = case_when(Cluster == "Cluster -706" ~ "Cluster 1",
-                             Cluster == "Cluster -708" ~ "Cluster 2",
-                             Cluster == "Cluster -698" ~ "Cluster 3",
-                             Cluster == "Cluster -710" ~ "Cluster 4")) %>% 
+  mutate(Cluster = case_when(Cluster == "Cluster -893" ~ "Cluster 1",
+                             Cluster == "Cluster -892" ~ "Cluster 2")) %>% 
   relocate(Cluster, Samples, Intensity) %>% 
   DT::datatable()
   
@@ -523,11 +389,11 @@ anova_table %>%
 
 ```{r Cluster_1, warning=FALSE, message=FALSE, fig.height = 8, fig.width = 8}
 anova_table %>% 
-  filter(Cluster == "Cluster -706") %>% 
+  filter(Cluster == "Cluster -893") %>% 
   select(starts_with("T") | contains("Gene")) %>% 
   pivot_longer(!Gene.names, names_to ="Sample", values_to = "Intensity") %>% 
   ggplot(mapping = aes(x = Sample, y = Intensity, group = Gene.names)) + 
-  geom_line(color = "magenta") + 
+  geom_line(color = "lightblue2") + 
   geom_smooth(aes(group = 1)) + 
   scale_x_discrete(limits = name_cluster_order) +
   theme(axis.title = element_text(size = 16, face = "bold"),
@@ -544,11 +410,11 @@ anova_table %>%
 
 ```{r Cluster_2, warning=FALSE, message=FALSE, fig.height = 8, fig.width = 8}
 anova_table %>% 
-  filter(Cluster == "Cluster -708") %>% 
+  filter(Cluster == "Cluster -892") %>% 
   select(starts_with("T") | contains("Gene")) %>% 
   pivot_longer(!Gene.names, names_to ="Sample", values_to = "Intensity") %>% 
   ggplot(mapping = aes(x = Sample, y = Intensity, group = Gene.names)) + 
-  geom_line(color = "firebrick4") + 
+  geom_line(color = "orange") + 
   geom_smooth(aes(group = 1)) + 
   scale_x_discrete(limits = name_cluster_order) +
   theme(axis.title = element_text(size = 16, face = "bold"),
@@ -557,48 +423,6 @@ anova_table %>%
         plot.title = element_text(size = 20, face = "bold", hjust = 0.5),
         panel.background = element_rect(fill = NA)) +
   labs(title = "Cluster 2", x = "Samples", y = "log2 Intensity") + 
-  theme(axis.line = element_line(size = 0.4, linetype = "solid"), 
-        axis.text.x = element_text(vjust = 0.5))
-```
-
-#### Cluster 3
-
-```{r Cluster_3, warning=FALSE, message=FALSE, fig.height = 8, fig.width = 8}
-anova_table %>% 
-  filter(Cluster == "Cluster -698") %>% 
-  select(starts_with("T") | contains("Gene")) %>% 
-  pivot_longer(!Gene.names, names_to ="Sample", values_to = "Intensity") %>% 
-  ggplot(mapping = aes(x = Sample, y = Intensity, group = Gene.names)) + 
-  geom_line(color = "khaki4") + 
-  geom_smooth(aes(group = 1)) + 
-  scale_x_discrete(limits = name_cluster_order) +
-  theme(axis.title = element_text(size = 16, face = "bold"),
-        axis.text = element_text(size = 14), 
-        axis.text.x = element_text(angle = 90), 
-        plot.title = element_text(size = 20, face = "bold", hjust = 0.5),
-        panel.background = element_rect(fill = NA)) +
-  labs(title = "Cluster 3", x = "Samples", y = "log2 Intensity") + 
-  theme(axis.line = element_line(size = 0.4, linetype = "solid"), 
-        axis.text.x = element_text(vjust = 0.5))
-```
-
-#### Cluster 4
-
-```{r Cluster_4, warning=FALSE, message=FALSE, fig.height = 8, fig.width = 8}
-anova_table %>% 
-  filter(Cluster == "Cluster -710") %>% 
-  select(starts_with("T") | contains("Gene")) %>% 
-  pivot_longer(!Gene.names, names_to ="Sample", values_to = "Intensity") %>% 
-  ggplot(mapping = aes(x = Sample, y = Intensity, group = Gene.names)) + 
-  geom_line(color = "blue") + 
-  geom_smooth(aes(group = 1)) + 
-  scale_x_discrete(limits = name_cluster_order) +
-  theme(axis.title = element_text(size = 16, face = "bold"),
-        axis.text = element_text(size = 14), 
-        axis.text.x = element_text(angle = 90), 
-        plot.title = element_text(size = 20, face = "bold", hjust = 0.5),
-        panel.background = element_rect(fill = NA)) +
-  labs(title = "Cluster 4", x = "Samples", y = "log2 Intensity") + 
   theme(axis.line = element_line(size = 0.4, linetype = "solid"), 
         axis.text.x = element_text(vjust = 0.5))
 ```
@@ -623,75 +447,99 @@ library(treemap) 								# treemap package by Martijn Tennekes
 # Here is your data from REVIGO. Scroll down for plot configuration options.
 
 revigo.names <- c("term_ID","description","freqInDbPercent","value","uniqueness","dispensability","representative");
-revigo.data <- rbind(c("GO:0002376","immune system process",0.876,7.004,1.000,0.000,"immune system process"),
-c("GO:0009888","tissue development",0.456,4.590,0.964,0.000,"tissue development"),
-c("GO:0003382","epithelial cell morphogenesis",0.007,3.252,0.959,0.509,"tissue development"),
-c("GO:0001525","angiogenesis",0.072,3.670,0.913,0.605,"tissue development"),
-c("GO:0022610","biological adhesion",0.553,6.524,1.000,0.000,"biological adhesion"),
-c("GO:0032501","multicellular organismal process",2.570,3.360,1.000,0.000,"multicellular organismal process"),
-c("GO:0043062","extracellular structure organization",0.064,11.116,0.962,0.000,"extracellular structure organization"),
-c("GO:0010324","membrane invagination",0.014,5.251,0.955,0.295,"extracellular structure organization"),
-c("GO:0030198","extracellular matrix organization",0.062,9.695,0.962,0.325,"extracellular structure organization"),
-c("GO:0097435","supramolecular fiber organization",0.313,4.025,0.958,0.365,"extracellular structure organization"),
-c("GO:0030036","actin cytoskeleton organization",0.354,3.483,0.906,0.420,"extracellular structure organization"),
-c("GO:0006911","phagocytosis, engulfment",0.010,5.251,0.873,0.570,"extracellular structure organization"),
-c("GO:0050817","coagulation",0.049,5.093,0.950,0.000,"coagulation"),
-c("GO:0007597","blood coagulation, intrinsic pathway",0.000,3.104,0.743,0.353,"coagulation"),
-c("GO:0001895","retina homeostasis",0.013,3.807,0.811,0.431,"coagulation"),
-c("GO:0003013","circulatory system process",0.091,3.672,0.947,0.488,"coagulation"),
-c("GO:0003008","system process",0.752,3.314,0.942,0.600,"coagulation"),
-c("GO:0050896","response to stimulus",12.913,5.052,1.000,0.000,"response to stimulus"),
-c("GO:0051187","(obsolete) cofactor catabolic process",0.130,3.182,1.000,0.000,"(obsolete) cofactor catabolic process"),
-c("GO:0051346","negative regulation of hydrolase activity",0.274,9.710,0.793,0.000,"negative regulation of hydrolase activity"),
-c("GO:0034114","regulation of heterotypic cell-cell adhesion",0.004,3.064,0.881,0.143,"negative regulation of hydrolase activity"),
-c("GO:0050818","regulation of coagulation",0.019,5.833,0.838,0.158,"negative regulation of hydrolase activity"),
-c("GO:0050878","regulation of body fluid levels",0.082,5.883,0.825,0.175,"negative regulation of hydrolase activity"),
-c("GO:0045861","negative regulation of proteolysis",0.214,9.289,0.738,0.189,"negative regulation of hydrolase activity"),
-c("GO:0060627","regulation of vesicle-mediated transport",0.108,4.114,0.856,0.201,"negative regulation of hydrolase activity"),
-c("GO:0002682","regulation of immune system process",0.288,6.105,0.847,0.204,"negative regulation of hydrolase activity"),
-c("GO:0048583","regulation of response to stimulus",1.204,3.009,0.830,0.238,"negative regulation of hydrolase activity"),
-c("GO:1903845","negative regulation of cellular response to transforming growth factor beta stimulus",0.000,3.491,0.745,0.406,"negative regulation of hydrolase activity"),
-c("GO:2000257","regulation of protein activation cascade",0.002,8.622,0.735,0.418,"negative regulation of hydrolase activity"),
-c("GO:1903317","regulation of protein maturation",0.013,7.251,0.840,0.471,"negative regulation of hydrolase activity"),
-c("GO:0032101","regulation of response to external stimulus",0.211,6.924,0.694,0.512,"negative regulation of hydrolase activity"),
-c("GO:0090066","regulation of anatomical structure size",0.262,3.613,0.812,0.523,"negative regulation of hydrolase activity"),
-c("GO:0030162","regulation of proteolysis",0.401,7.541,0.801,0.611,"negative regulation of hydrolase activity"),
-c("GO:0050727","regulation of inflammatory response",0.057,7.148,0.690,0.640,"negative regulation of hydrolase activity"),
-c("GO:0051241","negative regulation of multicellular organismal process",0.181,4.148,0.768,0.696,"negative regulation of hydrolase activity"),
-c("GO:0072376","protein activation cascade",0.004,14.623,0.923,0.000,"protein activation cascade"),
-c("GO:0030203","glycosaminoglycan metabolic process",1.032,5.125,0.911,0.103,"protein activation cascade"),
-c("GO:0043687","post-translational protein modification",0.028,8.108,0.971,0.141,"protein activation cascade"),
-c("GO:0031638","zymogen activation",0.010,3.292,0.968,0.150,"protein activation cascade"),
-c("GO:0006959","humoral immune response",0.043,8.914,0.861,0.198,"protein activation cascade"),
-c("GO:0015893","drug transport",0.027,3.182,0.897,0.223,"protein activation cascade"),
-c("GO:0019538","protein metabolic process",19.817,3.324,0.961,0.246,"protein activation cascade"),
-c("GO:0006952","defense response",0.774,6.620,0.897,0.283,"protein activation cascade"),
-c("GO:0009617","response to bacterium",0.169,6.201,0.899,0.317,"protein activation cascade"),
-c("GO:0006954","inflammatory response",0.094,4.726,0.887,0.500,"protein activation cascade"),
-c("GO:0006022","aminoglycan metabolic process",1.120,5.125,0.940,0.541,"protein activation cascade"),
-c("GO:0002526","acute inflammatory response",0.012,4.319,0.896,0.604,"protein activation cascade"),
-c("GO:0031639","plasminogen activation",0.004,3.491,0.969,0.609,"protein activation cascade"),
-c("GO:0006956","complement activation",0.025,8.388,0.595,0.617,"protein activation cascade"),
-c("GO:0002252","immune effector process",0.068,5.365,0.891,0.625,"protein activation cascade"),
-c("GO:1903510","mucopolysaccharide metabolic process",0.025,4.558,0.932,0.690,"protein activation cascade"),
-c("GO:0030449","regulation of complement activation",0.005,7.959,0.702,0.692,"protein activation cascade"),
-c("GO:0002576","platelet degranulation",0.002,7.517,0.922,0.005,"platelet degranulation"),
-c("GO:0016192","vesicle-mediated transport",1.371,6.427,0.944,0.179,"platelet degranulation"),
-c("GO:0015701","bicarbonate transport",0.006,4.247,0.960,0.193,"platelet degranulation"),
-c("GO:0015671","oxygen transport",0.052,4.186,0.957,0.228,"platelet degranulation"),
-c("GO:0015669","gas transport",0.053,4.186,0.957,0.228,"platelet degranulation"),
-c("GO:0098657","import into cell",0.055,3.510,0.957,0.229,"platelet degranulation"),
-c("GO:0046903","secretion",0.631,5.065,0.950,0.288,"platelet degranulation"),
-c("GO:0030301","cholesterol transport",0.018,3.693,0.958,0.296,"platelet degranulation"),
-c("GO:0006897","endocytosis",0.264,5.113,0.913,0.506,"platelet degranulation"),
-c("GO:0032940","secretion by cell",0.587,5.184,0.922,0.632,"platelet degranulation"),
-c("GO:0007155","cell adhesion",0.540,6.524,0.996,0.008,"cell adhesion"),
-c("GO:0030029","actin filament-based process",0.368,4.790,0.997,0.009,"actin filament-based process"),
-c("GO:0016101","diterpenoid metabolic process",0.028,3.485,0.976,0.038,"diterpenoid metabolic process"),
-c("GO:0001523","retinoid metabolic process",0.021,3.485,0.977,0.687,"diterpenoid metabolic process"),
-c("GO:0006066","alcohol metabolic process",0.591,3.148,0.988,0.040,"alcohol metabolic process"),
-c("GO:0042744","hydrogen peroxide catabolic process",0.129,3.368,0.971,0.043,"hydrogen peroxide catabolic process"),
-c("GO:0017001","antibiotic catabolic process",0.020,3.037,0.974,0.406,"hydrogen peroxide catabolic process"));
+revigo.data <- rbind(c("GO:0001503","ossification",0.046,4.458,0.951,0.000,"ossification"),
+c("GO:0035633","maintenance of blood-brain barrier",0.002,3.167,0.835,0.385,"ossification"),
+c("GO:0071827","plasma lipoprotein particle organization",0.007,4.387,0.887,0.414,"ossification"),
+c("GO:0071825","protein-lipid complex subunit organization",0.009,4.387,0.938,0.421,"ossification"),
+c("GO:0034367","protein-containing complex remodeling",0.008,4.387,0.938,0.425,"ossification"),
+c("GO:0003008","system process",0.752,4.409,0.942,0.567,"ossification"),
+c("GO:0003013","circulatory system process",0.091,3.171,0.949,0.600,"ossification"),
+c("GO:0002376","immune system process",0.876,6.197,1.000,0.000,"immune system process"),
+c("GO:0009888","tissue development",0.456,6.714,0.956,0.000,"tissue development"),
+c("GO:0031214","biomineral tissue development",0.017,3.372,0.930,0.542,"tissue development"),
+c("GO:0035987","endodermal cell differentiation",0.008,3.171,0.928,0.591,"tissue development"),
+c("GO:0009887","animal organ morphogenesis",0.235,4.067,0.917,0.667,"tissue development"),
+c("GO:0001568","blood vessel development",0.116,3.131,0.924,0.679,"tissue development"),
+c("GO:0022610","biological adhesion",0.553,10.682,1.000,0.000,"biological adhesion"),
+c("GO:0030162","regulation of proteolysis",0.401,11.654,0.801,0.000,"regulation of proteolysis"),
+c("GO:0110020","regulation of actomyosin structure organization",0.023,4.038,0.847,0.176,"regulation of proteolysis"),
+c("GO:0050878","regulation of body fluid levels",0.082,4.595,0.841,0.181,"regulation of proteolysis"),
+c("GO:0010810","regulation of cell-substrate adhesion",0.036,4.955,0.841,0.182,"regulation of proteolysis"),
+c("GO:0050865","regulation of cell activation",0.097,3.374,0.846,0.196,"regulation of proteolysis"),
+c("GO:0051346","negative regulation of hydrolase activity",0.274,10.775,0.799,0.200,"regulation of proteolysis"),
+c("GO:0030155","regulation of cell adhesion",0.129,3.433,0.843,0.201,"regulation of proteolysis"),
+c("GO:0051241","negative regulation of multicellular organismal process",0.181,4.712,0.780,0.207,"regulation of proteolysis"),
+c("GO:0040012","regulation of locomotion",0.199,4.172,0.841,0.208,"regulation of proteolysis"),
+c("GO:0002682","regulation of immune system process",0.288,8.312,0.837,0.215,"regulation of proteolysis"),
+c("GO:0022603","regulation of anatomical structure morphogenesis",0.882,5.577,0.807,0.239,"regulation of proteolysis"),
+c("GO:0051049","regulation of transport",0.482,4.532,0.767,0.243,"regulation of proteolysis"),
+c("GO:0051239","regulation of multicellular organismal process",0.553,3.635,0.829,0.246,"regulation of proteolysis"),
+c("GO:0032879","regulation of localization",0.712,4.128,0.825,0.253,"regulation of proteolysis"),
+c("GO:0048583","regulation of response to stimulus",1.204,5.279,0.818,0.267,"regulation of proteolysis"),
+c("GO:0070613","regulation of protein processing",0.012,11.609,0.828,0.489,"regulation of proteolysis"),
+c("GO:1903317","regulation of protein maturation",0.013,11.609,0.841,0.491,"regulation of proteolysis"),
+c("GO:0014910","regulation of smooth muscle cell migration",0.006,3.042,0.807,0.655,"regulation of proteolysis"),
+c("GO:0050818","regulation of coagulation",0.019,3.750,0.827,0.696,"regulation of proteolysis"),
+c("GO:0032501","multicellular organismal process",2.570,4.801,1.000,0.000,"multicellular organismal process"),
+c("GO:0040011","locomotion",0.960,3.836,1.000,0.000,"locomotion"),
+c("GO:0043062","extracellular structure organization",0.064,26.038,0.939,0.000,"extracellular structure organization"),
+c("GO:0010324","membrane invagination",0.014,6.243,0.933,0.295,"extracellular structure organization"),
+c("GO:0031032","actomyosin structure organization",0.036,8.827,0.922,0.313,"extracellular structure organization"),
+c("GO:0030198","extracellular matrix organization",0.062,21.297,0.932,0.325,"extracellular structure organization"),
+c("GO:0097435","supramolecular fiber organization",0.313,5.983,0.932,0.365,"extracellular structure organization"),
+c("GO:0007010","cytoskeleton organization",0.790,4.190,0.925,0.472,"extracellular structure organization"),
+c("GO:0006911","phagocytosis, engulfment",0.010,6.243,0.873,0.570,"extracellular structure organization"),
+c("GO:0120009","intermembrane lipid transfer",0.034,4.600,0.888,0.610,"extracellular structure organization"),
+c("GO:0045214","sarcomere organization",0.010,4.799,0.886,0.657,"extracellular structure organization"),
+c("GO:0030048","actin filament-based movement",0.019,3.688,0.957,0.677,"extracellular structure organization"),
+c("GO:0050896","response to stimulus",12.913,4.600,1.000,0.000,"response to stimulus"),
+c("GO:0072376","protein activation cascade",0.004,19.983,0.924,0.000,"protein activation cascade"),
+c("GO:0030203","glycosaminoglycan metabolic process",1.032,6.783,0.908,0.103,"protein activation cascade"),
+c("GO:0043687","post-translational protein modification",0.028,4.943,0.974,0.141,"protein activation cascade"),
+c("GO:0042157","lipoprotein metabolic process",0.277,3.396,0.974,0.185,"protein activation cascade"),
+c("GO:0006956","complement activation",0.025,14.523,0.627,0.192,"protein activation cascade"),
+c("GO:0019538","protein metabolic process",19.817,3.658,0.964,0.246,"protein activation cascade"),
+c("GO:0006952","defense response",0.774,7.804,0.900,0.271,"protein activation cascade"),
+c("GO:0001101","response to acid chemical",0.048,4.062,0.930,0.285,"protein activation cascade"),
+c("GO:0019932","second-messenger-mediated signaling",0.085,3.040,0.789,0.299,"protein activation cascade"),
+c("GO:0009617","response to bacterium",0.169,6.110,0.901,0.317,"protein activation cascade"),
+c("GO:0009605","response to external stimulus",1.712,3.762,0.912,0.399,"protein activation cascade"),
+c("GO:2000257","regulation of protein activation cascade",0.002,13.057,0.781,0.455,"protein activation cascade"),
+c("GO:0006954","inflammatory response",0.094,5.003,0.897,0.500,"protein activation cascade"),
+c("GO:1901136","carbohydrate derivative catabolic process",0.541,4.082,0.939,0.501,"protein activation cascade"),
+c("GO:0009611","response to wounding",0.103,3.484,0.914,0.504,"protein activation cascade"),
+c("GO:1901700","response to oxygen-containing compound",0.566,3.441,0.917,0.513,"protein activation cascade"),
+c("GO:0007165","signal transduction",7.086,3.427,0.703,0.531,"protein activation cascade"),
+c("GO:0042339","keratan sulfate metabolic process",0.001,3.936,0.924,0.532,"protein activation cascade"),
+c("GO:0006022","aminoglycan metabolic process",1.120,6.783,0.938,0.541,"protein activation cascade"),
+c("GO:0009612","response to mechanical stimulus",0.031,4.530,0.918,0.552,"protein activation cascade"),
+c("GO:0050727","regulation of inflammatory response",0.057,11.342,0.748,0.553,"protein activation cascade"),
+c("GO:0002526","acute inflammatory response",0.012,5.358,0.906,0.604,"protein activation cascade"),
+c("GO:0006959","humoral immune response",0.043,13.048,0.877,0.617,"protein activation cascade"),
+c("GO:0002252","immune effector process",0.068,7.854,0.917,0.625,"protein activation cascade"),
+c("GO:0042340","keratan sulfate catabolic process",0.000,3.936,0.925,0.626,"protein activation cascade"),
+c("GO:0032101","regulation of response to external stimulus",0.211,9.592,0.743,0.640,"protein activation cascade"),
+c("GO:1903510","mucopolysaccharide metabolic process",0.025,7.202,0.929,0.690,"protein activation cascade"),
+c("GO:0030449","regulation of complement activation",0.005,12.318,0.744,0.692,"protein activation cascade"),
+c("GO:0002576","platelet degranulation",0.002,7.740,0.939,0.005,"platelet degranulation"),
+c("GO:0016192","vesicle-mediated transport",1.371,6.014,0.954,0.179,"platelet degranulation"),
+c("GO:0098657","import into cell",0.055,4.391,0.966,0.229,"platelet degranulation"),
+c("GO:0048870","cell motility",0.572,3.231,0.942,0.275,"platelet degranulation"),
+c("GO:0046903","secretion",0.631,4.189,0.960,0.288,"platelet degranulation"),
+c("GO:0006897","endocytosis",0.264,5.724,0.931,0.506,"platelet degranulation"),
+c("GO:0032940","secretion by cell",0.587,4.022,0.937,0.632,"platelet degranulation"),
+c("GO:0019835","cytolysis",0.061,4.369,0.996,0.007,"cytolysis"),
+c("GO:0007155","cell adhesion",0.540,10.682,0.986,0.008,"cell adhesion"),
+c("GO:0030029","actin filament-based process",0.368,5.597,0.996,0.009,"actin filament-based process"),
+c("GO:0006928","movement of cell or subcellular component",0.961,3.077,0.996,0.010,"movement of cell or subcellular component"),
+c("GO:0044273","sulfur compound catabolic process",0.068,5.611,0.957,0.020,"sulfur compound catabolic process"),
+c("GO:0044272","sulfur compound biosynthetic process",1.337,3.322,0.961,0.622,"sulfur compound catabolic process"),
+c("GO:1901615","organic hydroxy compound metabolic process",0.975,3.638,0.987,0.036,"organic hydroxy compound metabolic process"),
+c("GO:0016101","diterpenoid metabolic process",0.028,3.314,0.965,0.042,"diterpenoid metabolic process"),
+c("GO:0008202","steroid metabolic process",0.207,3.119,0.969,0.422,"diterpenoid metabolic process"),
+c("GO:0001523","retinoid metabolic process",0.021,3.314,0.966,0.687,"diterpenoid metabolic process"),
+c("GO:1902652","secondary alcohol metabolic process",0.097,3.600,0.974,0.046,"secondary alcohol metabolic process"),
+c("GO:0016125","sterol metabolic process",0.124,3.600,0.958,0.673,"secondary alcohol metabolic process"));
 
 stuff <- data.frame(revigo.data);
 names(stuff) <- revigo.names;
@@ -734,25 +582,34 @@ library(treemap) 								# treemap package by Martijn Tennekes
 # --------------------------------------------------------------------------
 # Here is your data from REVIGO. Scroll down for plot configuration options.
 revigo.names <- c("term_ID","description","freqInDbPercent","value","uniqueness","dispensability","representative");
-revigo.data <- rbind(c("GO:0004601","peroxidase activity",0.402,3.368,0.973,0.000,"peroxidase activity"),
-c("GO:0016684","oxidoreductase activity, acting on peroxide as acceptor",0.476,3.182,0.973,0.326,"peroxidase activity"),
-c("GO:0004866","endopeptidase inhibitor activity",0.152,10.162,0.594,0.000,"endopeptidase inhibitor activity"),
-c("GO:0005198","structural molecule activity",2.916,3.060,1.000,0.000,"structural molecule activity"),
-c("GO:0005201","extracellular matrix structural constituent",0.035,13.676,0.942,0.000,"extracellular matrix structural constituent"),
-c("GO:0030020","extracellular matrix structural constituent conferring tensile strength",0.000,4.886,0.917,0.340,"extracellular matrix structural constituent"),
-c("GO:0030021","extracellular matrix structural constituent conferring compression resistance",0.002,3.154,0.915,0.683,"extracellular matrix structural constituent"),
-c("GO:0005344","oxygen carrier activity",0.040,4.186,1.000,0.000,"oxygen carrier activity"),
-c("GO:0005539","glycosaminoglycan binding",0.113,6.169,0.958,0.000,"glycosaminoglycan binding"),
-c("GO:0008201","heparin binding",0.038,4.857,0.959,0.203,"glycosaminoglycan binding"),
-c("GO:0098772","molecular function regulator",1.022,4.963,1.000,0.000,"molecular function regulator"),
-c("GO:0034987","immunoglobulin receptor binding",0.004,5.251,0.937,0.033,"immunoglobulin receptor binding"),
-c("GO:0031721","hemoglobin alpha binding",0.000,3.370,0.943,0.257,"immunoglobulin receptor binding"),
-c("GO:0031720","haptoglobin binding",0.001,4.186,0.941,0.271,"immunoglobulin receptor binding"),
-c("GO:0003823","antigen binding",0.007,3.588,0.976,0.034,"antigen binding"),
-c("GO:0019825","oxygen binding",0.080,3.830,0.972,0.039,"oxygen binding"),
-c("GO:0005509","calcium ion binding",1.076,4.233,0.966,0.048,"calcium ion binding"),
-c("GO:0020037","heme binding",1.470,3.182,0.960,0.063,"heme binding"),
-c("GO:0046906","tetrapyrrole binding",1.647,3.182,0.960,0.137,"heme binding"));
+revigo.data <- rbind(c("GO:0004866","endopeptidase inhibitor activity",0.152,10.636,0.717,0.000,"endopeptidase inhibitor activity"),
+c("GO:0005198","structural molecule activity",2.916,7.259,1.000,0.000,"structural molecule activity"),
+c("GO:0005201","extracellular matrix structural constituent",0.035,22.733,0.905,0.000,"extracellular matrix structural constituent"),
+c("GO:0097493","structural molecule activity conferring elasticity",0.000,3.622,0.920,0.335,"extracellular matrix structural constituent"),
+c("GO:0030020","extracellular matrix structural constituent conferring tensile strength",0.000,10.072,0.879,0.340,"extracellular matrix structural constituent"),
+c("GO:0008307","structural constituent of muscle",0.004,4.354,0.912,0.381,"extracellular matrix structural constituent"),
+c("GO:0030023","extracellular matrix constituent conferring elasticity",0.000,3.622,0.882,0.634,"extracellular matrix structural constituent"),
+c("GO:0030021","extracellular matrix structural constituent conferring compression resistance",0.002,5.680,0.875,0.683,"extracellular matrix structural constituent"),
+c("GO:0005319","lipid transporter activity",0.151,4.600,0.851,0.000,"lipid transporter activity"),
+c("GO:0015248","sterol transporter activity",0.010,3.777,0.834,0.696,"lipid transporter activity"),
+c("GO:0005539","glycosaminoglycan binding",0.113,10.371,0.965,0.000,"glycosaminoglycan binding"),
+c("GO:0008201","heparin binding",0.038,8.567,0.967,0.203,"glycosaminoglycan binding"),
+c("GO:0008236","serine-type peptidase activity",1.282,4.000,0.932,0.000,"serine-type peptidase activity"),
+c("GO:0017171","serine hydrolase activity",1.283,4.000,0.967,0.303,"serine-type peptidase activity"),
+c("GO:0098772","molecular function regulator",1.022,5.395,1.000,0.000,"molecular function regulator"),
+c("GO:0050997","quaternary ammonium group binding",0.005,3.083,0.978,0.033,"quaternary ammonium group binding"),
+c("GO:0003823","antigen binding",0.007,4.979,0.978,0.034,"antigen binding"),
+c("GO:0050840","extracellular matrix binding",0.011,3.693,0.977,0.035,"extracellular matrix binding"),
+c("GO:0005518","collagen binding",0.014,4.893,0.977,0.035,"collagen binding"),
+c("GO:0005102","signaling receptor binding",0.505,6.854,0.914,0.045,"signaling receptor binding"),
+c("GO:0048407","platelet-derived growth factor binding",0.001,3.917,0.935,0.350,"signaling receptor binding"),
+c("GO:0034987","immunoglobulin receptor binding",0.004,6.243,0.930,0.389,"signaling receptor binding"),
+c("GO:0002020","protease binding",0.020,5.370,0.925,0.432,"signaling receptor binding"),
+c("GO:0005509","calcium ion binding",1.076,5.234,0.956,0.056,"calcium ion binding"),
+c("GO:0070405","ammonium ion binding",0.000,3.083,0.974,0.132,"calcium ion binding"),
+c("GO:0031210","phosphatidylcholine binding",0.005,3.083,0.965,0.197,"calcium ion binding"),
+c("GO:1901681","sulfur compound binding",0.544,3.467,0.972,0.056,"sulfur compound binding"));
+
 stuff <- data.frame(revigo.data);
 names(stuff) <- revigo.names;
 
@@ -780,6 +637,7 @@ treemap(
   position.legend = "none"
 )
 ```
+
 
 ## {-}
 

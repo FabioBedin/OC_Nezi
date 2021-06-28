@@ -1,5 +1,5 @@
 ---
-title: "T2 vs TME2 comparison"
+title: "T1 vs T2 comparison"
 author: "Fabio Bedin | MS-Unit"
 output: html_document
 ---
@@ -9,7 +9,6 @@ output: html_document
 ***
 
 ```{r librerie, message=FALSE, warning=FALSE}
-#set.seed(20210520)
 knitr::opts_chunk$set(fig.align = "center")
 library("MBQN")
 library("dplyr")
@@ -23,6 +22,8 @@ library("enrichR")
 library("DT")
 library("stringr")
 library("patchwork")
+library("here")
+library("datapasta")
 ```
 
 ```{r Custom Functions}
@@ -35,16 +36,16 @@ source(here::here("code/custom_functions.R"))
 
 ***
 
-For this analysis i will focus in all the possible combination between **T2** and **TME2** populations, where different sub-populations can be identify as sensivie **(S)**, intermediate sensitive **(IS)** and resistant **(R)**.
+For this analysis i will focus in all the possible combination between **T1** and **T2** populations, where different sub-populations can be identify as sensivie **(S)**, intermediate sensitive **(IS)** and resistant **(R)**.
 
 ```{r input_Data}
 data <- read.csv(here::here("data/proteinGroups.txt"), header = TRUE,stringsAsFactors = FALSE, sep = "\t")
 
 expdesign <- read.table(here::here("data/expdesign_SI_S_R.tsv"), header = T, stringsAsFactors = F)
 
-anova_table <- read.table(here::here("data/anova_table_t2_tme2.txt"), header = T, stringsAsFactors = F, sep = "\t")
+anova_table <- read.table(here::here("data/anova_table_t1_t2_filt_1500.txt"), header = T, stringsAsFactors = F, sep = "\t")
 
-conditions<-c("T2_IS","T2_S","T2_R","TME2_IS","TME2_S","TME2_R")
+conditions<-c("T1_IS","T1_S","T1_R","T2_IS","T2_S","T2_R")
 
 expdesign <- subset(expdesign, condition %in% conditions)
 ```
@@ -103,11 +104,11 @@ plot_missval(data_se)
 
 ***
 
-To reduce the percentage of missing data I have decided to filter samples with less then **2000** identify proteins.
+To reduce the percentage of missing data I have decided to filter samples with less then **1500** identify proteins.
 Afrer that, I also use a second strong filter to remove all the proteins that are not identify in all replicates in at least 1 groups.
 
 ```{r data_filt}
-data_filt <- filter_bad_samples(data_se, thr = 2000)
+data_filt <- filter_bad_samples(data_se, thr = 1500)
 
 data_filt <- filter_missval(data_filt, thr = 0)
 ```
@@ -149,8 +150,8 @@ An idealized version of a label-free discovery mass spectrometry proteomics expe
 
 To avoid this problem, we impute missing data using random draws from a manually defined left-shifted Gaussian distribution.
 
-
 ```{r mixed_imputation, message=FALSE, warning=FALSE, results='hide'}
+#set.seed(20210520)
 data_imp_man <- impute(data_filt, fun = "man", shift = 1.8, scale = 0.3)
 ```
 
@@ -170,10 +171,10 @@ Protein-wise linear models combined with empirical Bayes statistics are used for
 data_diff <- test_diff(data_imp_man, type = "all")
 ```
 
-I define sifnificant protein with **FDR = 0.01** and **FC = 1**
+I define sifnificant protein with **FDR = 0.05** and **FC = 1**
 
 ```{r Diff_prot}
-dep <- add_rejections(data_diff, alpha = 0.01, lfc = 1)
+dep <- add_rejections(data_diff, alpha = 0.05, lfc = 1)
 
 results<-get_results(dep)
 ```
@@ -222,35 +223,35 @@ plot_cor(dep, significant = TRUE, lower = 0, upper = 1, pal = "Reds")
 #### Overview all volcano plot
 
 ```{r all_volcano, warning=FALSE, fig.height = 8, fig.width = 8}
-cont <- "T2_IS_vs_T2_R"
+cont <- "T1_IS_vs_T1_R"
 p1 <- plot_volcano(dep, contrast=cont, add_names=F,label_size=5,adjusted = F)
-cont <- "T2_IS_vs_T2_S"
+cont <- "T1_IS_vs_T1_S"
 p2 <- plot_volcano(dep, contrast=cont, add_names=F,label_size=5,adjusted = F)
-cont <- "T2_IS_vs_TME2_IS"
+cont <- "T1_IS_vs_T2_IS"
 p3 <- plot_volcano(dep, contrast=cont, add_names=F,label_size=5,adjusted = F)
-cont <- "T2_IS_vs_TME2_R"
+cont <- "T1_IS_vs_T2_R"
 p4 <- plot_volcano(dep, contrast=cont, add_names=F,label_size=5,adjusted = F)
-cont <- "T2_IS_vs_TME2_S"
+cont <- "T1_IS_vs_T2_S"
 p5 <- plot_volcano(dep, contrast=cont, add_names=F,label_size=5,adjusted = F)
-cont <- "T2_R_vs_T2_S"
+cont <- "T1_R_vs_T1_S"
 p6 <- plot_volcano(dep, contrast=cont, add_names=F,label_size=5,adjusted = F)
-cont <- "T2_R_vs_TME2_IS"
+cont <- "T1_R_vs_T2_IS"
 p7 <- plot_volcano(dep, contrast=cont, add_names=F,label_size=5,adjusted = F)
-cont <- "T2_R_vs_TME2_R"
+cont <- "T1_R_vs_T2_R"
 p8 <- plot_volcano(dep, contrast=cont, add_names=F,label_size=5,adjusted = F)
-cont <- "T2_R_vs_TME2_S"
+cont <- "T1_R_vs_T2_S"
 p9 <- plot_volcano(dep, contrast=cont, add_names=F,label_size=5,adjusted = F)
-cont <- "T2_S_vs_TME2_IS"
+cont <- "T1_S_vs_T2_IS"
 p10 <- plot_volcano(dep, contrast=cont, add_names=F,label_size=5,adjusted = F)
-cont <- "T2_S_vs_TME2_R"
+cont <- "T1_S_vs_T2_R"
 p11 <- plot_volcano(dep, contrast=cont, add_names=F,label_size=5,adjusted = F)
-cont <- "T2_S_vs_TME2_S"
+cont <- "T1_S_vs_T2_S"
 p12 <- plot_volcano(dep, contrast=cont, add_names=F,label_size=5,adjusted = F)
-cont <- "TME2_IS_vs_TME2_R"
+cont <- "T2_IS_vs_T2_R"
 p13 <- plot_volcano(dep, contrast=cont, add_names=F,label_size=5,adjusted = F)
-cont <- "TME2_IS_vs_TME2_S"
+cont <- "T2_IS_vs_T2_S"
 p14 <- plot_volcano(dep, contrast=cont, add_names=F,label_size=5,adjusted = F)
-cont <- "TME2_R_vs_TME2_S"
+cont <- "T2_R_vs_T2_S"
 p15 <- plot_volcano(dep, contrast=cont, add_names=F,label_size=5,adjusted = F)
 ```
 
@@ -272,13 +273,12 @@ plot_heatmap(dep, type = "centered", kmeans = TRUE, k = 7, show_row_names = T, i
 #write.table(cluster_table ,file = "cluster_table.txt", sep="\t", quote=FALSE, row.names=FALSE, col.names = T)
 ```
 
-
-### Volcano Plots T2_R vs TME2_R {.tabset}
+### Volcano Plots T1_R vs T2_R {.tabset}
 
 #### Significant
 
 ```{r V1,warning=FALSE, fig.height = 8, fig.width = 8}
-cont <- "T2_R_vs_TME2_R"
+cont <- "T1_R_vs_T2_R"
 plot_volcano(dep, contrast=cont, add_names=T,label_size=4,adjusted = F)
 ```
 
@@ -289,8 +289,7 @@ results %>%  select(starts_with("name") | starts_with(cont)) %>% filter(across(e
 #### Unique
 
 ```{r V2,warning=FALSE, fig.height = 8, fig.width = 8}
-unique_vec <- c("AAMDC","AHDC1","ARL8A","CMTR1","DDX21","DR1","EYA4","GIPC1","MRPS36","MTPAP","PABPN1","PGAM5","ROR1","SMAD2","SNRPC","SNRPD3","TRIM56","UFD1L","UTS2","XRCC1","ZNF207","PRR12","SACS","BCKDHB","CBX5","DCP1B","LTBP4","METAP1","NCOR2","NDUFB10","NXF1","POLR2E","RAB43","SETD3","TGM1","TOMM22","VWA5A","APOBEC3C","SERPINA6","STX1A","UPF2")
-#unique_vec <- c("AHDC1","UTS2","SACS","BCKDHB","CBX5","DCP1B","LTBP4","METAP1","NCOR2","NDUFB10","NXF1","POLR2E","RAB43","SETD3","TGM1","TOMM22","VWA5A","APOBEC3C","SERPINA6","STX1A","UPF2")
+unique_vec <- c("ABCA8","AHDC1","CLDN1","CTSL","DMXL1","FAM83H","FAM195B","FCN3","GCA","NFX1","RANBP1","TACO1","TMED5","USMG5","VAMP3","LTBP4")
 plot_volcano_2(dep, contrast=cont, add_names=T,label_size=4,adjusted = F)
 ```
 
@@ -298,12 +297,12 @@ plot_volcano_2(dep, contrast=cont, add_names=T,label_size=4,adjusted = F)
 results %>%  select(starts_with("name") | starts_with(cont)) %>% filter(name %in% unique_vec) %>% arrange(across(ends_with("p.adj"))) %>% mutate(across(2:3, format, scientific = T, digits = 2)) %>% dplyr::rename_with(~ tolower(gsub(paste0(cont,"_"), "", .x)), .cols = starts_with(cont)) %>% DT::datatable()
 ```
 
-### Volcano Plots T2_S vs TME2_S {.tabset}
+### Volcano Plots T1_S vs T2_S {.tabset}
 
 #### Significant
 
 ```{r V5,warning=FALSE, fig.height = 8, fig.width = 8}
-cont <- "T2_S_vs_TME2_S"
+cont <- "T1_S_vs_T2_S"
 plot_volcano(dep, contrast=cont, add_names=T,label_size=4,adjusted = F)
 ```
 
@@ -314,8 +313,7 @@ results %>%  select(starts_with("name") | starts_with(cont)) %>% filter(across(e
 #### Unique
 
 ```{r V6,warning=FALSE, fig.height = 8, fig.width = 8}
-unique_vec <- unique_vec <- c("AAMDC","AHDC1","ARL8A","CMTR1","DDX21","DR1","EYA4","GIPC1","MRPS36","MTPAP","PABPN1","PGAM5","ROR1","SMAD2","SNRPC","SNRPD3","TRIM56","UFD1L","UTS2","XRCC1","ZNF207","PRR12","SACS","BUD31","CDKN2A","CTSL","DCP1B","DENND4C","ESRP1","EWSR1","NCKAP1L","NIPSNAP1","RDH14","SEL1L","SRSF9","SYNGR2","TBCD","TFCP2","TMLHE","APOBEC3C","ECM1","GPNMB","PODN","SGCD","SRPX")
-#unique_vec <- unique_vec <- c("MRPS36","SNRPC","BUD31","CDKN2A","CTSL","DCP1B","DENND4C","ESRP1","EWSR1","NCKAP1L","NIPSNAP1","RDH14","SEL1L","SRSF9","SYNGR2","TBCD","TFCP2","TMLHE","APOBEC3C","ECM1","GPNMB","PODN","SGCD","SRPX")
+unique_vec <- c("ABCA8","AHDC1","CLDN1","CTSL","DMXL1","FAM83H","MBLAC2","RMND1","RPL37A","WISP2","ABHD16A","FAM98B","FBP1","GIPC1","MRPL39","PFN2","PLP2","RPLP1","SYPL1","TRIM23")
 plot_volcano_2(dep, contrast=cont, add_names=T,label_size=4,adjusted = F)
 ```
 
@@ -323,12 +321,12 @@ plot_volcano_2(dep, contrast=cont, add_names=T,label_size=4,adjusted = F)
 results %>%  select(starts_with("name") | starts_with(cont)) %>% filter(name %in% unique_vec) %>% arrange(across(ends_with("p.adj"))) %>% mutate(across(2:3, format, scientific = T, digits = 2)) %>% dplyr::rename_with(~ tolower(gsub(paste0(cont,"_"), "", .x)), .cols = starts_with(cont)) %>% DT::datatable()
 ```
 
-### Volcano Plots T2_IS vs TME2_IS {.tabset}
+### Volcano Plots T1_IS vs T2_IS {.tabset}
 
 #### Significant
 
 ```{r V3,warning=FALSE, fig.height = 8, fig.width = 8}
-cont <- "T2_IS_vs_TME2_IS"
+cont <- "T1_IS_vs_T2_IS"
 plot_volcano(dep, contrast=cont, add_names=T,label_size=4,adjusted = F)
 ```
 
@@ -339,146 +337,13 @@ results %>%  select(starts_with("name") | starts_with(cont)) %>% filter(across(e
 #### Unique
 
 ```{r V4,warning=FALSE, fig.height = 8, fig.width = 8}
-unique_vec <- c("AAMDC","AHDC1","ARL8A","CMTR1","DDX21","DR1","EYA4","GIPC1","MRPS36","MTPAP","PABPN1","PGAM5","ROR1","SMAD2","SNRPC","SNRPD3","TRIM56","UFD1L","UTS2","XRCC1","ZNF207","PRR12","SACS","ATP5J2-PTCD1","C16orf13","GCA","GNG12","GNL3","MAVS","PARD6B","PDCD11","POLR2A","PTGES2","RTN1","SH3KBP1","SNRPA1","SYNGR2","TMEM201","TXLNA")
-#unique_vec <- c("AAMDC","ATP5J2-PTCD1","C16orf13","GCA","GNG12","GNL3","MAVS","PARD6B","PDCD11","POLR2A","PTGES2","RTN1","SH3KBP1","SNRPA1","SYNGR2","TMEM201","TXLNA")
+unique_vec <- c("ABCA8","AHDC1","CLDN1","CTSL","DMXL1","FAM83H","CCDC80","GSDMA","IGKV1D-13","PIP","PLEKHO2","LSM3","XPO4")
 plot_volcano_2(dep, contrast=cont, add_names=T,label_size=4,adjusted = F)
 ```
 
 ```{r T4}
 results %>%  select(starts_with("name") | starts_with(cont)) %>% filter(name %in% unique_vec) %>% arrange(across(ends_with("p.adj"))) %>% mutate(across(2:3, format, scientific = T, digits = 2)) %>% dplyr::rename_with(~ tolower(gsub(paste0(cont,"_"), "", .x)), .cols = starts_with(cont)) %>% DT::datatable()
 ```
-
-## Gene ontology {.tabset .tabset-fade .tabset-pills}
-
-***
-```{r gene_name}
-# ## Background list
-# write.table(results$name,file = "gene_name_GO_background.txt", sep="\t", quote=FALSE, row.names=FALSE, col.names = F)
-# 
-# ## Significant list
-# results %>% filter(significant) -> gene_name
-# write.table(gene_name$name,file = "gene_name_GO_T2_TME2.txt", sep="\t", quote=FALSE, row.names=FALSE, col.names = F)
-```
-
-### Biological Process
-
-```{r BP, warning=FALSE, fig.height = 7, fig.width = 10}
-# A treemap R script produced by the REVIGO server at http://revigo.irb.hr/
-# If you found REVIGO useful in your work, please cite the following reference:
-# Supek F et al. "REVIGO summarizes and visualizes long lists of Gene Ontology
-# terms" PLoS ONE 2011. doi:10.1371/journal.pone.0021800
-
-# author: Anton Kratz <anton.kratz@gmail.com>, RIKEN Omics Science Center, Functional Genomics Technology Team, Japan
-# created: Fri, Nov 02, 2012  7:25:52 PM
-# last change: Fri, Nov 09, 2012  3:20:01 PM
-
-# -----------------------------------------------------------------------------
-# If you don't have the treemap package installed, uncomment the following line:
-# install.packages( "treemap" );
-library(treemap) 								# treemap package by Martijn Tennekes
-
-# Set the working directory if necessary
-# setwd("C:/Users/username/workingdir");
-
-# --------------------------------------------------------------------------
-# Here is your data from REVIGO. Scroll down for plot configuration options.
-
-revigo.names <- c("term_ID","description","freqInDbPercent","value","uniqueness","dispensability","representative");
-revigo.data <- rbind(c("GO:0002526","acute inflammatory response",0.012,3.142,1.000,0.000,"acute inflammatory response"));
-
-stuff <- data.frame(revigo.data);
-names(stuff) <- revigo.names;
-
-stuff$value <- as.numeric( as.character(stuff$value) );
-stuff$freqInDbPercent <- as.numeric( as.character(stuff$freqInDbPercent) );
-stuff$uniqueness <- as.numeric( as.character(stuff$uniqueness) );
-stuff$dispensability <- as.numeric( as.character(stuff$dispensability) );
-
-
-# check the tmPlot command documentation for all possible parameters - there are a lot more
-treemap(
-  stuff,
-  index = c("representative","description"),
-  vSize = "value",
-  type = "categorical",
-  vColor = "representative",
-  fontsize.labels=c(16,14),
-  title = "REVIGO TreeMap",
-  inflate.labels = FALSE,      # set this to TRUE for space-filling group labels - good for posters
-  lowerbound.cex.labels = 0,
-  palette = "Set1",
-  align.labels=list(
-        c("center", "top"), 
-        c("center", "bottom")
-        ),# try to draw as many labels as possible (still, some small squares may not get a label)
-  position.legend = "none"
-)
-
-
-
-
-```
-
-### Molecular funtion
-
-```{r MF, warning=FALSE, fig.height = 7, fig.width = 10}
-# A treemap R script produced by the REVIGO server at http://revigo.irb.hr/
-# If you found REVIGO useful in your work, please cite the following reference:
-# Supek F et al. "REVIGO summarizes and visualizes long lists of Gene Ontology
-# terms" PLoS ONE 2011. doi:10.1371/journal.pone.0021800
-
-# author: Anton Kratz <anton.kratz@gmail.com>, RIKEN Omics Science Center, Functional Genomics Technology Team, Japan
-# created: Fri, Nov 02, 2012  7:25:52 PM
-# last change: Fri, Nov 09, 2012  3:20:01 PM
-
-# -----------------------------------------------------------------------------
-# If you don't have the treemap package installed, uncomment the following line:
-# install.packages( "treemap" );
-library(treemap) 								# treemap package by Martijn Tennekes
-
-# Set the working directory if necessary
-# setwd("C:/Users/username/workingdir");
-
-# --------------------------------------------------------------------------
-# Here is your data from REVIGO. Scroll down for plot configuration options.
-
-revigo.names <- c("term_ID","description","freqInDbPercent","value","uniqueness","dispensability","representative");
-revigo.data <- rbind(c("GO:0071813","lipoprotein particle binding",0.004,3.277,0.264,0.000,"lipoprotein particle binding"),
-c("GO:0071814","protein-lipid complex binding",0.004,3.277,0.264,0.487,"lipoprotein particle binding"));
-
-stuff <- data.frame(revigo.data);
-names(stuff) <- revigo.names;
-
-stuff$value <- as.numeric( as.character(stuff$value) );
-stuff$freqInDbPercent <- as.numeric( as.character(stuff$freqInDbPercent) );
-stuff$uniqueness <- as.numeric( as.character(stuff$uniqueness) );
-stuff$dispensability <- as.numeric( as.character(stuff$dispensability) );
-
-
-# check the tmPlot command documentation for all possible parameters - there are a lot more
-treemap(
-  stuff,
-  index = c("representative","description"),
-  vSize = "value",
-  type = "categorical",
-  vColor = "representative",
-  fontsize.labels=c(16,14),
-  title = "REVIGO TreeMap",
-  inflate.labels = FALSE,      # set this to TRUE for space-filling group labels - good for posters
-  lowerbound.cex.labels = 0,
-  palette = "Set1",
-  align.labels=list(
-        c("center", "top"), 
-        c("center", "bottom")
-        ),# try to draw as many labels as possible (still, some small squares may not get a label)
-  position.legend = "none"
-)
-
-
-
-
-```
-
 
 ## Multiple sample ANOVA test {.tabset .tabset-fade .tabset-pills}
 
@@ -487,7 +352,7 @@ treemap(
 In this analysis, instead of comparing each possible condition individually, I used a multiple sample **ANOVA** test to observe the overall pattern of change.
 
 ```{r ANOVA, out.width = "200%"}
-knitr::include_graphics("assets/HeatMap_t2_tme2_bis.png", error = F)
+knitr::include_graphics("assets/HeatMap_t1_t2_1500.png", error = F)
 ```
 
 ### Cluster Table
@@ -503,14 +368,15 @@ name_cluster_order <- anova_table %>%
   select(starts_with("T")) %>% colnames()
 
 anova_table %>%
-  select(!c(Majority.protein.IDs, ANOVA.Significant, Protein.names, Protein.IDs, Only.identified.by.site, Reverse, Potential.contaminant)) %>% 
+  select(!c(Majority.protein.IDs, ANOVA.Significant, Protein.names, Protein.IDs)) %>% 
   dplyr::rename(Log.ANOVA.p.value = X.Log.ANOVA.p.value) %>% 
   pivot_longer(cols = starts_with("T"), names_to = "Samples", values_to = "Intensity") %>% 
   mutate(across(contains(c(".value", "Intensity")), format, scientific = T, digits = 2)) %>% 
-  mutate(Cluster = case_when(Cluster == "Cluster -706" ~ "Cluster 1",
-                             Cluster == "Cluster -708" ~ "Cluster 2",
-                             Cluster == "Cluster -698" ~ "Cluster 3",
-                             Cluster == "Cluster -710" ~ "Cluster 4")) %>% 
+  mutate(Cluster = case_when(Cluster == "Cluster -206" ~ "Cluster 1",
+                             Cluster == "Cluster -204" ~ "Cluster 2",
+                             Cluster == "Cluster -205" ~ "Cluster 3",
+                             Cluster == "Cluster -208" ~ "Cluster 4",
+                             Cluster == "Cluster -207" ~ "Cluster 5")) %>% 
   relocate(Cluster, Samples, Intensity) %>% 
   DT::datatable()
   
@@ -523,7 +389,7 @@ anova_table %>%
 
 ```{r Cluster_1, warning=FALSE, message=FALSE, fig.height = 8, fig.width = 8}
 anova_table %>% 
-  filter(Cluster == "Cluster -706") %>% 
+  filter(Cluster == "Cluster -206") %>% 
   select(starts_with("T") | contains("Gene")) %>% 
   pivot_longer(!Gene.names, names_to ="Sample", values_to = "Intensity") %>% 
   ggplot(mapping = aes(x = Sample, y = Intensity, group = Gene.names)) + 
@@ -544,11 +410,11 @@ anova_table %>%
 
 ```{r Cluster_2, warning=FALSE, message=FALSE, fig.height = 8, fig.width = 8}
 anova_table %>% 
-  filter(Cluster == "Cluster -708") %>% 
+  filter(Cluster == "Cluster -204") %>% 
   select(starts_with("T") | contains("Gene")) %>% 
   pivot_longer(!Gene.names, names_to ="Sample", values_to = "Intensity") %>% 
   ggplot(mapping = aes(x = Sample, y = Intensity, group = Gene.names)) + 
-  geom_line(color = "firebrick4") + 
+  geom_line(color = "pink2") + 
   geom_smooth(aes(group = 1)) + 
   scale_x_discrete(limits = name_cluster_order) +
   theme(axis.title = element_text(size = 16, face = "bold"),
@@ -565,11 +431,11 @@ anova_table %>%
 
 ```{r Cluster_3, warning=FALSE, message=FALSE, fig.height = 8, fig.width = 8}
 anova_table %>% 
-  filter(Cluster == "Cluster -698") %>% 
+  filter(Cluster == "Cluster -205") %>% 
   select(starts_with("T") | contains("Gene")) %>% 
   pivot_longer(!Gene.names, names_to ="Sample", values_to = "Intensity") %>% 
   ggplot(mapping = aes(x = Sample, y = Intensity, group = Gene.names)) + 
-  geom_line(color = "khaki4") + 
+  geom_line(color = "orange") + 
   geom_smooth(aes(group = 1)) + 
   scale_x_discrete(limits = name_cluster_order) +
   theme(axis.title = element_text(size = 16, face = "bold"),
@@ -586,11 +452,11 @@ anova_table %>%
 
 ```{r Cluster_4, warning=FALSE, message=FALSE, fig.height = 8, fig.width = 8}
 anova_table %>% 
-  filter(Cluster == "Cluster -710") %>% 
+  filter(Cluster == "Cluster -208") %>% 
   select(starts_with("T") | contains("Gene")) %>% 
   pivot_longer(!Gene.names, names_to ="Sample", values_to = "Intensity") %>% 
   ggplot(mapping = aes(x = Sample, y = Intensity, group = Gene.names)) + 
-  geom_line(color = "blue") + 
+  geom_line(color = "paleturquoise") + 
   geom_smooth(aes(group = 1)) + 
   scale_x_discrete(limits = name_cluster_order) +
   theme(axis.title = element_text(size = 16, face = "bold"),
@@ -599,6 +465,27 @@ anova_table %>%
         plot.title = element_text(size = 20, face = "bold", hjust = 0.5),
         panel.background = element_rect(fill = NA)) +
   labs(title = "Cluster 4", x = "Samples", y = "log2 Intensity") + 
+  theme(axis.line = element_line(size = 0.4, linetype = "solid"), 
+        axis.text.x = element_text(vjust = 0.5))
+```
+
+#### Cluster 5
+
+```{r Cluster_5, warning=FALSE, message=FALSE, fig.height = 8, fig.width = 8}
+anova_table %>% 
+  filter(Cluster == "Cluster -207") %>% 
+  select(starts_with("T") | contains("Gene")) %>% 
+  pivot_longer(!Gene.names, names_to ="Sample", values_to = "Intensity") %>% 
+  ggplot(mapping = aes(x = Sample, y = Intensity, group = Gene.names)) + 
+  geom_line(color = "khaki4") + 
+  geom_smooth(aes(group = 1)) + 
+  scale_x_discrete(limits = name_cluster_order) +
+  theme(axis.title = element_text(size = 16, face = "bold"),
+        axis.text = element_text(size = 14), 
+        axis.text.x = element_text(angle = 90), 
+        plot.title = element_text(size = 20, face = "bold", hjust = 0.5),
+        panel.background = element_rect(fill = NA)) +
+  labs(title = "Cluster 5", x = "Samples", y = "log2 Intensity") + 
   theme(axis.line = element_line(size = 0.4, linetype = "solid"), 
         axis.text.x = element_text(vjust = 0.5))
 ```
@@ -623,76 +510,20 @@ library(treemap) 								# treemap package by Martijn Tennekes
 # Here is your data from REVIGO. Scroll down for plot configuration options.
 
 revigo.names <- c("term_ID","description","freqInDbPercent","value","uniqueness","dispensability","representative");
-revigo.data <- rbind(c("GO:0002376","immune system process",0.876,7.004,1.000,0.000,"immune system process"),
-c("GO:0009888","tissue development",0.456,4.590,0.964,0.000,"tissue development"),
-c("GO:0003382","epithelial cell morphogenesis",0.007,3.252,0.959,0.509,"tissue development"),
-c("GO:0001525","angiogenesis",0.072,3.670,0.913,0.605,"tissue development"),
-c("GO:0022610","biological adhesion",0.553,6.524,1.000,0.000,"biological adhesion"),
-c("GO:0032501","multicellular organismal process",2.570,3.360,1.000,0.000,"multicellular organismal process"),
-c("GO:0043062","extracellular structure organization",0.064,11.116,0.962,0.000,"extracellular structure organization"),
-c("GO:0010324","membrane invagination",0.014,5.251,0.955,0.295,"extracellular structure organization"),
-c("GO:0030198","extracellular matrix organization",0.062,9.695,0.962,0.325,"extracellular structure organization"),
-c("GO:0097435","supramolecular fiber organization",0.313,4.025,0.958,0.365,"extracellular structure organization"),
-c("GO:0030036","actin cytoskeleton organization",0.354,3.483,0.906,0.420,"extracellular structure organization"),
-c("GO:0006911","phagocytosis, engulfment",0.010,5.251,0.873,0.570,"extracellular structure organization"),
-c("GO:0050817","coagulation",0.049,5.093,0.950,0.000,"coagulation"),
-c("GO:0007597","blood coagulation, intrinsic pathway",0.000,3.104,0.743,0.353,"coagulation"),
-c("GO:0001895","retina homeostasis",0.013,3.807,0.811,0.431,"coagulation"),
-c("GO:0003013","circulatory system process",0.091,3.672,0.947,0.488,"coagulation"),
-c("GO:0003008","system process",0.752,3.314,0.942,0.600,"coagulation"),
-c("GO:0050896","response to stimulus",12.913,5.052,1.000,0.000,"response to stimulus"),
-c("GO:0051187","(obsolete) cofactor catabolic process",0.130,3.182,1.000,0.000,"(obsolete) cofactor catabolic process"),
-c("GO:0051346","negative regulation of hydrolase activity",0.274,9.710,0.793,0.000,"negative regulation of hydrolase activity"),
-c("GO:0034114","regulation of heterotypic cell-cell adhesion",0.004,3.064,0.881,0.143,"negative regulation of hydrolase activity"),
-c("GO:0050818","regulation of coagulation",0.019,5.833,0.838,0.158,"negative regulation of hydrolase activity"),
-c("GO:0050878","regulation of body fluid levels",0.082,5.883,0.825,0.175,"negative regulation of hydrolase activity"),
-c("GO:0045861","negative regulation of proteolysis",0.214,9.289,0.738,0.189,"negative regulation of hydrolase activity"),
-c("GO:0060627","regulation of vesicle-mediated transport",0.108,4.114,0.856,0.201,"negative regulation of hydrolase activity"),
-c("GO:0002682","regulation of immune system process",0.288,6.105,0.847,0.204,"negative regulation of hydrolase activity"),
-c("GO:0048583","regulation of response to stimulus",1.204,3.009,0.830,0.238,"negative regulation of hydrolase activity"),
-c("GO:1903845","negative regulation of cellular response to transforming growth factor beta stimulus",0.000,3.491,0.745,0.406,"negative regulation of hydrolase activity"),
-c("GO:2000257","regulation of protein activation cascade",0.002,8.622,0.735,0.418,"negative regulation of hydrolase activity"),
-c("GO:1903317","regulation of protein maturation",0.013,7.251,0.840,0.471,"negative regulation of hydrolase activity"),
-c("GO:0032101","regulation of response to external stimulus",0.211,6.924,0.694,0.512,"negative regulation of hydrolase activity"),
-c("GO:0090066","regulation of anatomical structure size",0.262,3.613,0.812,0.523,"negative regulation of hydrolase activity"),
-c("GO:0030162","regulation of proteolysis",0.401,7.541,0.801,0.611,"negative regulation of hydrolase activity"),
-c("GO:0050727","regulation of inflammatory response",0.057,7.148,0.690,0.640,"negative regulation of hydrolase activity"),
-c("GO:0051241","negative regulation of multicellular organismal process",0.181,4.148,0.768,0.696,"negative regulation of hydrolase activity"),
-c("GO:0072376","protein activation cascade",0.004,14.623,0.923,0.000,"protein activation cascade"),
-c("GO:0030203","glycosaminoglycan metabolic process",1.032,5.125,0.911,0.103,"protein activation cascade"),
-c("GO:0043687","post-translational protein modification",0.028,8.108,0.971,0.141,"protein activation cascade"),
-c("GO:0031638","zymogen activation",0.010,3.292,0.968,0.150,"protein activation cascade"),
-c("GO:0006959","humoral immune response",0.043,8.914,0.861,0.198,"protein activation cascade"),
-c("GO:0015893","drug transport",0.027,3.182,0.897,0.223,"protein activation cascade"),
-c("GO:0019538","protein metabolic process",19.817,3.324,0.961,0.246,"protein activation cascade"),
-c("GO:0006952","defense response",0.774,6.620,0.897,0.283,"protein activation cascade"),
-c("GO:0009617","response to bacterium",0.169,6.201,0.899,0.317,"protein activation cascade"),
-c("GO:0006954","inflammatory response",0.094,4.726,0.887,0.500,"protein activation cascade"),
-c("GO:0006022","aminoglycan metabolic process",1.120,5.125,0.940,0.541,"protein activation cascade"),
-c("GO:0002526","acute inflammatory response",0.012,4.319,0.896,0.604,"protein activation cascade"),
-c("GO:0031639","plasminogen activation",0.004,3.491,0.969,0.609,"protein activation cascade"),
-c("GO:0006956","complement activation",0.025,8.388,0.595,0.617,"protein activation cascade"),
-c("GO:0002252","immune effector process",0.068,5.365,0.891,0.625,"protein activation cascade"),
-c("GO:1903510","mucopolysaccharide metabolic process",0.025,4.558,0.932,0.690,"protein activation cascade"),
-c("GO:0030449","regulation of complement activation",0.005,7.959,0.702,0.692,"protein activation cascade"),
-c("GO:0002576","platelet degranulation",0.002,7.517,0.922,0.005,"platelet degranulation"),
-c("GO:0016192","vesicle-mediated transport",1.371,6.427,0.944,0.179,"platelet degranulation"),
-c("GO:0015701","bicarbonate transport",0.006,4.247,0.960,0.193,"platelet degranulation"),
-c("GO:0015671","oxygen transport",0.052,4.186,0.957,0.228,"platelet degranulation"),
-c("GO:0015669","gas transport",0.053,4.186,0.957,0.228,"platelet degranulation"),
-c("GO:0098657","import into cell",0.055,3.510,0.957,0.229,"platelet degranulation"),
-c("GO:0046903","secretion",0.631,5.065,0.950,0.288,"platelet degranulation"),
-c("GO:0030301","cholesterol transport",0.018,3.693,0.958,0.296,"platelet degranulation"),
-c("GO:0006897","endocytosis",0.264,5.113,0.913,0.506,"platelet degranulation"),
-c("GO:0032940","secretion by cell",0.587,5.184,0.922,0.632,"platelet degranulation"),
-c("GO:0007155","cell adhesion",0.540,6.524,0.996,0.008,"cell adhesion"),
-c("GO:0030029","actin filament-based process",0.368,4.790,0.997,0.009,"actin filament-based process"),
-c("GO:0016101","diterpenoid metabolic process",0.028,3.485,0.976,0.038,"diterpenoid metabolic process"),
-c("GO:0001523","retinoid metabolic process",0.021,3.485,0.977,0.687,"diterpenoid metabolic process"),
-c("GO:0006066","alcohol metabolic process",0.591,3.148,0.988,0.040,"alcohol metabolic process"),
-c("GO:0042744","hydrogen peroxide catabolic process",0.129,3.368,0.971,0.043,"hydrogen peroxide catabolic process"),
-c("GO:0017001","antibiotic catabolic process",0.020,3.037,0.974,0.406,"hydrogen peroxide catabolic process"));
-
+revigo.data <- rbind(c("GO:0030029","actin filament-based process",0.368,4.495,0.997,0.000,"actin filament-based process"),
+c("GO:0060333","interferon-gamma-mediated signaling pathway",0.002,3.857,0.616,0.006,"interferon-gamma-mediated signaling pathway"),
+c("GO:0045824","negative regulation of innate immune response",0.014,3.857,0.428,0.125,"interferon-gamma-mediated signaling pathway"),
+c("GO:0031341","regulation of cell killing",0.014,3.857,0.839,0.138,"interferon-gamma-mediated signaling pathway"),
+c("GO:0071900","regulation of protein serine/threonine kinase activity",0.226,3.187,0.814,0.174,"interferon-gamma-mediated signaling pathway"),
+c("GO:0019883","antigen processing and presentation of endogenous antigen",0.005,3.857,0.760,0.457,"interferon-gamma-mediated signaling pathway"),
+c("GO:0016045","detection of bacterium",0.002,3.857,0.826,0.476,"interferon-gamma-mediated signaling pathway"),
+c("GO:0009595","detection of biotic stimulus",0.026,3.115,0.851,0.573,"interferon-gamma-mediated signaling pathway"),
+c("GO:0060337","type I interferon signaling pathway",0.002,3.115,0.614,0.642,"interferon-gamma-mediated signaling pathway"),
+c("GO:0002486","antigen processing and presentation of endogenous peptide antigen via MHC class I via ER pathway, TAP-independent",0.000,3.857,0.774,0.661,"interferon-gamma-mediated signaling pathway"),
+c("GO:0002480","antigen processing and presentation of exogenous peptide antigen via MHC class I, TAP-independent",0.000,3.857,0.779,0.668,"interferon-gamma-mediated signaling pathway"),
+c("GO:0030036","actin cytoskeleton organization",0.354,3.712,0.903,0.009,"actin cytoskeleton organization"),
+c("GO:0032535","regulation of cellular component size",0.216,3.004,0.771,0.407,"actin cytoskeleton organization"),
+c("GO:0097435","supramolecular fiber organization",0.313,3.569,0.932,0.420,"actin cytoskeleton organization"));
 stuff <- data.frame(revigo.data);
 names(stuff) <- revigo.names;
 
@@ -734,25 +565,11 @@ library(treemap) 								# treemap package by Martijn Tennekes
 # --------------------------------------------------------------------------
 # Here is your data from REVIGO. Scroll down for plot configuration options.
 revigo.names <- c("term_ID","description","freqInDbPercent","value","uniqueness","dispensability","representative");
-revigo.data <- rbind(c("GO:0004601","peroxidase activity",0.402,3.368,0.973,0.000,"peroxidase activity"),
-c("GO:0016684","oxidoreductase activity, acting on peroxide as acceptor",0.476,3.182,0.973,0.326,"peroxidase activity"),
-c("GO:0004866","endopeptidase inhibitor activity",0.152,10.162,0.594,0.000,"endopeptidase inhibitor activity"),
-c("GO:0005198","structural molecule activity",2.916,3.060,1.000,0.000,"structural molecule activity"),
-c("GO:0005201","extracellular matrix structural constituent",0.035,13.676,0.942,0.000,"extracellular matrix structural constituent"),
-c("GO:0030020","extracellular matrix structural constituent conferring tensile strength",0.000,4.886,0.917,0.340,"extracellular matrix structural constituent"),
-c("GO:0030021","extracellular matrix structural constituent conferring compression resistance",0.002,3.154,0.915,0.683,"extracellular matrix structural constituent"),
-c("GO:0005344","oxygen carrier activity",0.040,4.186,1.000,0.000,"oxygen carrier activity"),
-c("GO:0005539","glycosaminoglycan binding",0.113,6.169,0.958,0.000,"glycosaminoglycan binding"),
-c("GO:0008201","heparin binding",0.038,4.857,0.959,0.203,"glycosaminoglycan binding"),
-c("GO:0098772","molecular function regulator",1.022,4.963,1.000,0.000,"molecular function regulator"),
-c("GO:0034987","immunoglobulin receptor binding",0.004,5.251,0.937,0.033,"immunoglobulin receptor binding"),
-c("GO:0031721","hemoglobin alpha binding",0.000,3.370,0.943,0.257,"immunoglobulin receptor binding"),
-c("GO:0031720","haptoglobin binding",0.001,4.186,0.941,0.271,"immunoglobulin receptor binding"),
-c("GO:0003823","antigen binding",0.007,3.588,0.976,0.034,"antigen binding"),
-c("GO:0019825","oxygen binding",0.080,3.830,0.972,0.039,"oxygen binding"),
-c("GO:0005509","calcium ion binding",1.076,4.233,0.966,0.048,"calcium ion binding"),
-c("GO:0020037","heme binding",1.470,3.182,0.960,0.063,"heme binding"),
-c("GO:0046906","tetrapyrrole binding",1.647,3.182,0.960,0.137,"heme binding"));
+revigo.data <- rbind(c("GO:0003779","actin binding",0.451,4.173,0.458,0.000,"actin binding"),
+c("GO:0046977","TAP binding",0.001,3.857,0.570,0.349,"actin binding"),
+c("GO:0008092","cytoskeletal protein binding",0.859,3.328,0.452,0.587,"actin binding"),
+c("GO:0042605","peptide antigen binding",0.001,3.857,0.940,0.033,"peptide antigen binding"));
+
 stuff <- data.frame(revigo.data);
 names(stuff) <- revigo.names;
 
@@ -781,6 +598,9 @@ treemap(
 )
 ```
 
+
 ## {-}
 
 ***
+
+

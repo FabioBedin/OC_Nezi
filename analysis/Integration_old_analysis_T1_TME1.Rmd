@@ -35,7 +35,7 @@ source(here::here("code/custom_functions.R"))
 Summary of previeus results of **unique** proteins:
 
 ```{r summary, out.width = "150%"}
-knitr::include_graphics(here::here("data/Nezi_unique_t1_Vs_tme1.png"))
+knitr::include_graphics("assets/Nezi_unique_t1_Vs_tme1.png", error = F)
 ```
 
 ***

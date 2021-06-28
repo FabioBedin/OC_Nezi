@@ -488,7 +488,7 @@ treemap(
 In this analysis, instead of comparing each possible condition individually, I used a multiple sample **ANOVA** test to observe the overall pattern of change.
 
 ```{r ANOVA, out.width = "200%"}
-knitr::include_graphics(here::here("data/HeatMap_t1_t2.png"))
+knitr::include_graphics("assets/HeatMap_t1_t2.png", error = F)
 ```
 
 ### Cluster Table

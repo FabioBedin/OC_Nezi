@@ -18,10 +18,13 @@ The different sub-populations in the analysis are identify as sensivie **(S)**, 
 ***
 
 + [T1 vs T2 comparison](T1_vs_T2_Perseus_imputation.html): all the possible combination between **T1** and **T2** populations.
-
+  - [T1 vs T2 comparison](T1_vs_T2_new_filter.html): applied a different filter (1500).
+  
 + [T1 vs TME1 comparison](T1_vs_TME1_Perseus_imputation.html): all the possible combination between **T1** and **TME1** populations.
+  - [T1 vs TME1 comparison](T1_vs_TME1_new_filter.html): applied a different filter (1500).
 
 + [T2 vs TME2 comparison](T2_vs_TME2_Perseus_imputation.html): all the possible combination between **T2** and **TME2** populations.
+  - [T2 vs TME2 comparison](T2_vs_TME2_new_filter.html): applied a different filter (1500).
 
 ***
 

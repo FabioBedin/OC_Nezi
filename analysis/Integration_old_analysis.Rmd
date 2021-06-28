@@ -35,7 +35,7 @@ source(here::here("code/custom_functions.R"))
 Summary of previeus results of **unique** proteins:
 
 ```{r summary, out.width = "150%"}
-knitr::include_graphics(here::here("data/Nezi_unique_t1_Vs_t2.png"))
+knitr::include_graphics("assets/Nezi_unique_t1_Vs_t2.png",  error = F)
 ```
 
 ***
@@ -62,11 +62,17 @@ expdesign <- read.table(here::here("data/expdesign_old_exp.tsv"), header = T, st
 cond_1<-"T1_P1"
 cond_2<-"T2_P1"
 
+# vec <- c("T1_P1", "T2_P1", "T1_P2", "T2_P2", "T1_P3", "T2_P3", "T1_P4", "T2_P4", "T1_P5", "T2_P5", "T1_P7", "T2_P7")
+
+# expdesign <- expdesign %>% filter(condition %in% vec)
+
 conditions<-c(cond_1,cond_2)
 
 expdesign <- subset(expdesign, condition %in% conditions)
 
 test<- paste(cond_1,cond_2,sep="_vs_")
+
+# test <- c("T1_P1_vs_T2_P1", "T1_P2_vs_T2_P2", "T1_P3_vs_T2_P3", "T1_P4_vs_T2_P4", "T1_P5_vs_T2_P5", "T1_P7_vs_T2_P7")
 
 columns<-match(paste("LFQ.intensity.",expdesign$label,sep=""),colnames(data_unique))
 
@@ -83,6 +89,7 @@ set.seed(20210520)
 data_imp_man <- impute(data_filt, fun = "man", shift = 1.8, scale = 0.3)
 
 data_diff <- test_diff_BH(data_imp_man, type = "all")
+# data_diff <- test_diff_BH(data_imp_man, type = "manual", test = test)
 
 dep <- add_rejections(data_diff, alpha = 0.05, lfc = 1)
 
