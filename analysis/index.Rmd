@@ -34,9 +34,12 @@ in this analysis I combine the previeus results obtained form single patient com
 It is now possible to observe the unique proteins within the differential analysis thanks to imputation.
 
 + [T1 vs T2](Integration_old_analysis.html): patients comparison in condition **T1** vs **T2**.
+  - [T1 vs T2](Integration_old_analysis_mixed_imputation.html): mixed imputation.
 
 + [T1 vs TME1](Integration_old_analysis_T1_TME1.html): patients comparison in condition **T1** vs **TME1**.
+  - [T1 vs TME1](Integration_old_analysis_T1_TME1_mixed_imputation.html): mixed imputation.
 
-+ [T2 vs TME2](Integration_old_analysis_T2_TME2.html): patients comparison in condition **T2** vs **TME2**
++ [T2 vs TME2](Integration_old_analysis_T2_TME2.html): patients comparison in condition **T2** vs **TME2**.
+  - [T2 vs TME2](Integration_old_analysis_T2_TME2_mixed_imputation.html): mixed imputation.
 
 ***
