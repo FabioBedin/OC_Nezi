@@ -25,6 +25,7 @@ library("here")
 library("datapasta")
 library("visdat")
 library("naniar")
+library("gprofiler2")
 ```
 
 ```{r Custom Functions}
@@ -138,6 +139,39 @@ plot_volcano_2(dep, contrast=test, add_names=T,label_size=4,adjusted = F)
 results %>%  select(starts_with("name") | starts_with(test)) %>% filter(name %in% unique_vec) %>% arrange(across(ends_with("p.adj"))) %>% mutate(across(2:3, format, scientific = T, digits = 2)) %>% dplyr::rename_with(~ tolower(gsub(paste0(test,"_"), "", .x)), .cols = starts_with(test)) %>% DT::datatable()
 ```
 
+##### GO-BP {.tabset}
+
+###### T2
+
+```{r BP_up_1, fig.height = 5, fig.width = 8}
+GN_1up <- results %>% filter(significant & get(paste0(test, "_ratio")) > 0) %>% pull(name)
+
+GO_BP <- gost(query = GN_1up, organism = "hsapiens", sources = c("GO:BP", "GO:MF", "GO:CC", "KEGG", "HP"), ordered_query = T)
+
+gostplot(GO_BP, capped = TRUE, interactive = TRUE)
+```
+
+Top 5 BP enriched terms:
+
+```{r BP_up_table_1, message=FALSE, warning=FALSE, fig.height = 6, fig.width = 10}
+publish_gosttable(GO_BP, highlight_terms = GO_BP$result[1:5,])
+```
+
+###### TME2
+
+```{r BP_down_1, fig.height = 5, fig.width = 8}
+GN_1down <- results %>% filter(significant & get(paste0(test, "_ratio")) < 0) %>% pull(name)
+
+GO_BP <- gost(query = GN_1down, organism = "hsapiens", sources = c("GO:BP", "GO:MF", "GO:CC", "KEGG", "HP"), ordered_query = T)
+
+gostplot(GO_BP, capped = TRUE, interactive = TRUE)
+```
+
+Top 5 BP enriched terms:
+
+```{r BP_down_table_1, message=FALSE, warning=FALSE, fig.height = 6, fig.width = 10}
+publish_gosttable(GO_BP, highlight_terms = GO_BP$result[1:5,])
+```
 
 
 ```{r Data wrangling_2, message=FALSE, warning=FALSE, results='hide'}
@@ -220,6 +254,42 @@ plot_volcano_2(dep, contrast=test, add_names=T,label_size=4,adjusted = F)
 results %>%  select(starts_with("name") | starts_with(test)) %>% filter(name %in% unique_vec) %>% arrange(across(ends_with("p.adj"))) %>% mutate(across(2:3, format, scientific = T, digits = 2)) %>% dplyr::rename_with(~ tolower(gsub(paste0(test,"_"), "", .x)), .cols = starts_with(test)) %>% DT::datatable()
 ```
 
+##### GO-BP {.tabset}
+
+###### T2
+
+```{r BP_up_2, fig.height = 5, fig.width = 8}
+GN_2up <- results %>% filter(significant & get(paste0(test, "_ratio")) > 0) %>% pull(name)
+
+GO_BP <- gost(query = GN_2up, organism = "hsapiens", sources = c("GO:BP", "GO:MF", "GO:CC", "KEGG", "HP"), ordered_query = T)
+
+gostplot(GO_BP, capped = TRUE, interactive = TRUE)
+```
+
+Top 5 BP enriched terms:
+
+```{r BP_up_table_2, message=FALSE, warning=FALSE, fig.height = 6, fig.width = 10}
+publish_gosttable(GO_BP, highlight_terms = GO_BP$result[1:5,])
+```
+
+
+###### TME2
+
+```{r BP_down_2, fig.height = 5, fig.width = 8}
+GN_2down <- results %>% filter(significant & get(paste0(test, "_ratio")) < 0) %>% pull(name)
+
+GO_BP <- gost(query = GN_2down, organism = "hsapiens", sources = c("GO:BP", "GO:MF", "GO:CC", "KEGG", "HP"), ordered_query = T)
+
+gostplot(GO_BP, capped = TRUE, interactive = TRUE)
+```
+
+Top 5 BP enriched terms:
+
+```{r BP_down_table_2, message=FALSE, warning=FALSE, fig.height = 6, fig.width = 10}
+publish_gosttable(GO_BP, highlight_terms = GO_BP$result[1:5,])
+```
+
+
 
 ```{r Data wrangling_3, message=FALSE, warning=FALSE, results='hide'}
 expdesign <- read.table(here::here("data/expdesign_old_exp.tsv"), header = T, stringsAsFactors = F)
@@ -301,6 +371,39 @@ plot_volcano_2(dep, contrast=test, add_names=T,label_size=4,adjusted = F)
 results %>%  select(starts_with("name") | starts_with(test)) %>% filter(name %in% unique_vec) %>% arrange(across(ends_with("p.adj"))) %>% mutate(across(2:3, format, scientific = T, digits = 2)) %>% dplyr::rename_with(~ tolower(gsub(paste0(test,"_"), "", .x)), .cols = starts_with(test)) %>% DT::datatable()
 ```
 
+##### GO-BP {.tabset}
+
+###### T2
+
+```{r BP_up_3, fig.height = 5, fig.width = 8}
+GN_3up <- results %>% filter(significant & get(paste0(test, "_ratio")) > 0) %>% pull(name)
+
+GO_BP <- gost(query = GN_3up, organism = "hsapiens", sources = c("GO:BP", "GO:MF", "GO:CC", "KEGG", "HP"), ordered_query = T)
+
+gostplot(GO_BP, capped = TRUE, interactive = TRUE)
+```
+
+Top 5 BP enriched terms:
+
+```{r BP_up_table_3, message=FALSE, warning=FALSE, fig.height = 6, fig.width = 10}
+publish_gosttable(GO_BP, highlight_terms = GO_BP$result[1:5,])
+```
+
+###### TME2
+
+```{r BP_down_3, fig.height = 5, fig.width = 8}
+GN_3down <- results %>% filter(significant & get(paste0(test, "_ratio")) < 0) %>% pull(name)
+
+GO_BP <- gost(query = GN_3down, organism = "hsapiens", sources = c("GO:BP", "GO:MF", "GO:CC", "KEGG", "HP"), ordered_query = T)
+
+gostplot(GO_BP, capped = TRUE, interactive = TRUE)
+```
+
+Top 5 BP enriched terms:
+
+```{r BP_down_table_3, message=FALSE, warning=FALSE, fig.height = 6, fig.width = 10}
+publish_gosttable(GO_BP, highlight_terms = GO_BP$result[1:5,])
+```
 
 
 ```{r Data wrangling_4, message=FALSE, warning=FALSE, results='hide'}
@@ -381,6 +484,40 @@ plot_volcano_2(dep, contrast=test, add_names=T,label_size=4,adjusted = F)
 
 ```{r T44}
 results %>%  select(starts_with("name") | starts_with(test)) %>% filter(name %in% unique_vec) %>% arrange(across(ends_with("p.adj"))) %>% mutate(across(2:3, format, scientific = T, digits = 2)) %>% dplyr::rename_with(~ tolower(gsub(paste0(test,"_"), "", .x)), .cols = starts_with(test)) %>% DT::datatable()
+```
+
+##### GO-BP {.tabset}
+
+###### T2
+
+```{r BP_up_4, fig.height = 5, fig.width = 8}
+GN_4up <- results %>% filter(significant & get(paste0(test, "_ratio")) > 0) %>% pull(name)
+
+GO_BP <- gost(query = GN_4up, organism = "hsapiens", sources = c("GO:BP", "GO:MF", "GO:CC", "KEGG", "HP"), ordered_query = T)
+
+gostplot(GO_BP, capped = TRUE, interactive = TRUE)
+```
+
+Top 5 BP enriched terms:
+
+```{r BP_up_table_4, message=FALSE, warning=FALSE, fig.height = 6, fig.width = 10}
+publish_gosttable(GO_BP, highlight_terms = GO_BP$result[1:5,])
+```
+
+###### TME2
+
+```{r BP_down_4, fig.height = 5, fig.width = 8}
+GN_4down <- results %>% filter(significant & get(paste0(test, "_ratio")) < 0) %>% pull(name)
+
+GO_BP <- gost(query = GN_4down, organism = "hsapiens", sources = c("GO:BP", "GO:MF", "GO:CC", "KEGG", "HP"), ordered_query = T)
+
+gostplot(GO_BP, capped = TRUE, interactive = TRUE)
+```
+
+Top 5 BP enriched terms:
+
+```{r BP_down_table_4, message=FALSE, warning=FALSE, fig.height = 6, fig.width = 10}
+publish_gosttable(GO_BP, highlight_terms = GO_BP$result[1:5,])
 ```
 
 
@@ -465,6 +602,39 @@ plot_volcano_2(dep, contrast=test, add_names=T,label_size=4,adjusted = F)
 results %>%  select(starts_with("name") | starts_with(test)) %>% filter(name %in% unique_vec) %>% arrange(across(ends_with("p.adj"))) %>% mutate(across(2:3, format, scientific = T, digits = 2)) %>% dplyr::rename_with(~ tolower(gsub(paste0(test,"_"), "", .x)), .cols = starts_with(test)) %>% DT::datatable()
 ```
 
+##### GO-BP {.tabset}
+
+###### T2
+
+```{r BP_up_5, fig.height = 5, fig.width = 8}
+GN_5up <- results %>% filter(significant & get(paste0(test, "_ratio")) > 0) %>% pull(name)
+
+GO_BP <- gost(query = GN_5up, organism = "hsapiens", sources = c("GO:BP", "GO:MF", "GO:CC", "KEGG", "HP"), ordered_query = T)
+
+gostplot(GO_BP, capped = TRUE, interactive = TRUE)
+```
+
+Top 5 BP enriched terms:
+
+```{r BP_up_table_5, message=FALSE, warning=FALSE, fig.height = 6, fig.width = 10}
+publish_gosttable(GO_BP, highlight_terms = GO_BP$result[1:5,])
+```
+
+###### TME2
+
+```{r BP_down_5, fig.height = 5, fig.width = 8}
+GN_5down <- results %>% filter(significant & get(paste0(test, "_ratio")) < 0) %>% pull(name)
+
+GO_BP <- gost(query = GN_5down, organism = "hsapiens", sources = c("GO:BP", "GO:MF", "GO:CC", "KEGG", "HP"), ordered_query = T)
+
+gostplot(GO_BP, capped = TRUE, interactive = TRUE)
+```
+
+Top 5 BP enriched terms:
+
+```{r BP_down_table_5, message=FALSE, warning=FALSE, fig.height = 6, fig.width = 10}
+publish_gosttable(GO_BP, highlight_terms = GO_BP$result[1:5,])
+```
 
 
 ```{r Data wrangling_7, message=FALSE, warning=FALSE, results='hide'}
@@ -546,5 +716,86 @@ plot_volcano_2(dep, contrast=test, add_names=T,label_size=4,adjusted = F)
 ```{r T47}
 results %>%  select(starts_with("name") | starts_with(test)) %>% filter(name %in% unique_vec) %>% arrange(across(ends_with("p.adj"))) %>% mutate(across(2:3, format, scientific = T, digits = 2)) %>% dplyr::rename_with(~ tolower(gsub(paste0(test,"_"), "", .x)), .cols = starts_with(test)) %>% DT::datatable()
 ```
+
+##### GO-BP {.tabset}
+
+###### T2
+
+```{r BP_up_7, fig.height = 5, fig.width = 8}
+GN_7up <- results %>% filter(significant & get(paste0(test, "_ratio")) > 0) %>% pull(name)
+
+GO_BP <- gost(query = GN_7up, organism = "hsapiens", sources = c("GO:BP", "GO:MF", "GO:CC", "KEGG", "HP"), ordered_query = T)
+
+gostplot(GO_BP, capped = TRUE, interactive = TRUE)
+```
+
+Top 5 BP enriched terms:
+
+```{r BP_up_table_7, message=FALSE, warning=FALSE, fig.height = 6, fig.width = 10}
+publish_gosttable(GO_BP, highlight_terms = GO_BP$result[1:5,])
+```
+
+###### TME2
+
+```{r BP_down_7, fig.height = 5, fig.width = 8}
+GN_7down <- results %>% filter(significant & get(paste0(test, "_ratio")) < 0) %>% pull(name)
+
+GO_BP <- gost(query = GN_7down, organism = "hsapiens", sources = c("GO:BP", "GO:MF", "GO:CC", "KEGG", "HP"), ordered_query = T)
+
+gostplot(GO_BP, capped = TRUE, interactive = TRUE)
+```
+
+Top 5 BP enriched terms:
+
+```{r BP_down_table_7, message=FALSE, warning=FALSE, fig.height = 6, fig.width = 10}
+publish_gosttable(GO_BP, highlight_terms = GO_BP$result[1:5,])
+```
+
+### Multiple queries {.tabset}
+
+#### T1
+
+```{r Multiple_queries_up, message=FALSE, warning=FALSE, fig.width = 7}
+multi_UP <- gost(query = list("P1" = GN_1up, "P2" = GN_2up, "P3" = GN_3up, "P4" = GN_4up, "P5" = GN_5up,  "P7" = GN_7up), organism = "hsapiens", multi_query = TRUE, sources = c("GO:BP", "GO:MF", "GO:CC", "KEGG", "HP"))
+
+multi_UP$result %>% 
+  mutate(meta = list(names(multi_UP$meta$query_metadata$queries))) %>% 
+  unnest(cols = c(p_values, significant, query_sizes, meta)) %>% 
+  select(term_id, p_values, significant, source, term_name, meta) %>% 
+  mutate(p_values = format(p_values, scientific = T, digits = 2)) %>% 
+  pivot_wider(names_from = meta, values_from = c(p_values, significant)) %>% 
+  select(!starts_with("significant") & !starts_with("term_id")) %>% 
+  DT::datatable(options = list(pageLength = 6)) %>% 
+  formatStyle('p_values_P1', backgroundColor = styleInterval(0.05, c('lightgreen', 'white'))) %>%
+  formatStyle('p_values_P2', backgroundColor = styleInterval(0.05, c('lightgreen', 'white'))) %>%
+  formatStyle('p_values_P3', backgroundColor = styleInterval(0.05, c('lightgreen', 'white'))) %>%
+  formatStyle('p_values_P4', backgroundColor = styleInterval(0.05, c('lightgreen', 'white'))) %>%
+  formatStyle('p_values_P5', backgroundColor = styleInterval(0.05, c('lightgreen', 'white'))) %>%
+  formatStyle('p_values_P7', backgroundColor = styleInterval(0.05, c('lightgreen', 'white')))
+
+```
+
+#### T2
+
+```{r Multiple_queries_down, message=FALSE, warning=FALSE, fig.width = 7}
+multi_DOWN <- gost(query = list("P1" = GN_1down, "P2" = GN_2down, "P3" = GN_3down, "P4" = GN_4down, "P5" = GN_5down, "P7" = GN_7down), organism = "hsapiens", multi_query = TRUE, sources = c("GO:BP", "GO:MF", "GO:CC", "KEGG", "HP"))
+
+
+multi_DOWN$result %>% 
+  mutate(meta = list(names(multi_UP$meta$query_metadata$queries))) %>% 
+  unnest(cols = c(p_values, significant, query_sizes, meta)) %>% 
+  select(term_id, p_values, significant, source, term_name, meta) %>% 
+  mutate(p_values = format(p_values, scientific = T, digits = 2)) %>% 
+  pivot_wider(names_from = meta, values_from = c(p_values, significant)) %>% 
+  select(!starts_with("significant") & !starts_with("term_id")) %>% 
+  DT::datatable(options = list(pageLength = 6)) %>% 
+  formatStyle('p_values_P1', backgroundColor = styleInterval(0.05, c('lightgreen', 'white'))) %>%
+  formatStyle('p_values_P2', backgroundColor = styleInterval(0.05, c('lightgreen', 'white'))) %>%
+  formatStyle('p_values_P3', backgroundColor = styleInterval(0.05, c('lightgreen', 'white'))) %>%
+  formatStyle('p_values_P4', backgroundColor = styleInterval(0.05, c('lightgreen', 'white'))) %>%
+  formatStyle('p_values_P5', backgroundColor = styleInterval(0.05, c('lightgreen', 'white'))) %>%
+  formatStyle('p_values_P7', backgroundColor = styleInterval(0.05, c('lightgreen', 'white')))
+```
+
 
 ## {-}
