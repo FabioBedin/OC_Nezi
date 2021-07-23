@@ -378,7 +378,7 @@ div.tocify {
 
 <p>
 <button type="button" class="btn btn-default btn-workflowr btn-workflowr-report" data-toggle="collapse" data-target="#workflowr-report">
-<span class="glyphicon glyphicon-list" aria-hidden="true"></span> workflowr <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span>
+<span class="glyphicon glyphicon-list" aria-hidden="true"></span> workflowr <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span>
 </button>
 </p>
 <div id="workflowr-report" class="collapse">
@@ -387,7 +387,7 @@ div.tocify {
 <a data-toggle="tab" href="#summary">Summary</a>
 </li>
 <li>
-<a data-toggle="tab" href="#checks"> Checks <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> </a>
+<a data-toggle="tab" href="#checks"> Checks <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> </a>
 </li>
 <li>
 <a data-toggle="tab" href="#versions">Past versions</a>
@@ -396,10 +396,10 @@ div.tocify {
 <div class="tab-content">
 <div id="summary" class="tab-pane fade in active">
 <p>
-<strong>Last updated:</strong> 2021-07-22
+<strong>Last updated:</strong> 2021-07-23
 </p>
 <p>
-<strong>Checks:</strong> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> 6 <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> 1
+<strong>Checks:</strong> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> 7 <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> 0
 </p>
 <p>
 <strong>Knit directory:</strong> <code>OC_Nezi/</code> <span class="glyphicon glyphicon-question-sign" aria-hidden="true" title="This is the local directory in which the code in this file was executed."> </span>
@@ -415,12 +415,12 @@ This reproducible <a href="http://rmarkdown.rstudio.com">R Markdown</a> analysis
 <div class="panel panel-default">
 <div class="panel-heading">
 <p class="panel-title">
-<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRMarkdownfilestronguncommittedchanges"> <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> <strong>R Markdown file:</strong> uncommitted changes </a>
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRMarkdownfilestronguptodate"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>R Markdown file:</strong> up-to-date </a>
 </p>
 </div>
-<div id="strongRMarkdownfilestronguncommittedchanges" class="panel-collapse collapse">
+<div id="strongRMarkdownfilestronguptodate" class="panel-collapse collapse">
 <div class="panel-body">
-<p>The R Markdown file has unstaged changes. To know which version of the R Markdown file created these results, you’ll want to first commit it to the Git repo. If you’re still working on the analysis, you can ignore this warning. When you’re finished, you can run <code>wflow_publish</code> to commit the R Markdown file and build the HTML.</p>
+<p>Great! Since the R Markdown file has been committed to the Git repository, you know the exact version of the code that produced these results.</p>
 </div>
 </div>
 </div>
@@ -487,16 +487,16 @@ This reproducible <a href="http://rmarkdown.rstudio.com">R Markdown</a> analysis
 <div class="panel panel-default">
 <div class="panel-heading">
 <p class="panel-title">
-<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcomFabioBedinOCNezitreeef6fd5334951983a1e2e2a4f13d9042362cef4d7targetblankef6fd53a"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Repository version:</strong> <a href="https://github.com/FabioBedin/OC_Nezi/tree/ef6fd5334951983a1e2e2a4f13d9042362cef4d7" target="_blank">ef6fd53</a> </a>
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcomFabioBedinOCNezitree66a229c24654952ca2a5d583d329ede22dac2cd5targetblank66a229ca"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Repository version:</strong> <a href="https://github.com/FabioBedin/OC_Nezi/tree/66a229c24654952ca2a5d583d329ede22dac2cd5" target="_blank">66a229c</a> </a>
 </p>
 </div>
-<div id="strongRepositoryversionstrongahrefhttpsgithubcomFabioBedinOCNezitreeef6fd5334951983a1e2e2a4f13d9042362cef4d7targetblankef6fd53a" class="panel-collapse collapse">
+<div id="strongRepositoryversionstrongahrefhttpsgithubcomFabioBedinOCNezitree66a229c24654952ca2a5d583d329ede22dac2cd5targetblank66a229ca" class="panel-collapse collapse">
 <div class="panel-body">
 <p>
 Great! You are using Git for version control. Tracking code development and connecting the code version to the results is critical for reproducibility.
 </p>
 <p>
-The results in this page were generated with repository version <a href="https://github.com/FabioBedin/OC_Nezi/tree/ef6fd5334951983a1e2e2a4f13d9042362cef4d7" target="_blank">ef6fd53</a>. See the <em>Past versions</em> tab to see a history of the changes made to the R Markdown and HTML files.
+The results in this page were generated with repository version <a href="https://github.com/FabioBedin/OC_Nezi/tree/66a229c24654952ca2a5d583d329ede22dac2cd5" target="_blank">66a229c</a>. See the <em>Past versions</em> tab to see a history of the changes made to the R Markdown and HTML files.
 </p>
 <p>
 Note that you need to be careful to ensure that all relevant files for the analysis have been committed to Git prior to generating the results (you can use <code>wflow_publish</code> or <code>wflow_git_commit</code>). workflowr only checks the R Markdown file, but you know if there are other scripts or data files that it depends on. Below is the status of the Git repository when the results were generated:
@@ -513,11 +513,7 @@ Untracked files:
     Untracked:  Rplot01.png
     Untracked:  T1_vs_T2.tex
     Untracked:  UP_p1_t1_t2.txt
-    Untracked:  analysis/T1_vs_T2_population.Rmd
-    Untracked:  analysis/T1_vs_TME1_population.Rmd
     Untracked:  analysis/T2_R_vs_T2_S_gene_name.txt
-    Untracked:  analysis/T2_vs_TME2_population.Rmd
-    Untracked:  analysis/TME2_vs_TME1_population.Rmd
     Untracked:  analysis/test.cys
     Untracked:  code/custom_functions.R
     Untracked:  data/anova_table_t1_t2.txt
@@ -543,16 +539,6 @@ Untracked files:
     Untracked:  output/results_T2_vs_TME2_sub-populations.xlsx
     Untracked:  output/results_TME2_vs_TME1_population.xlsx
     Untracked:  site_libs/
-
-Unstaged changes:
-    Modified:   analysis/Integration_old_analysis_T1_TME1_mixed_imputation.Rmd
-    Modified:   analysis/Integration_old_analysis_T2_TME2_mixed_imputation.Rmd
-    Modified:   analysis/Integration_old_analysis_mixed_imputation.Rmd
-    Modified:   analysis/T1_vs_T2_new_filter.Rmd
-    Modified:   analysis/T1_vs_TME1_new_filter.Rmd
-    Modified:   analysis/T2_vs_TME2_new_filter.Rmd
-    Modified:   analysis/_site.yml
-    Modified:   analysis/index.Rmd
 
 </code></pre>
 <p>
@@ -591,6 +577,40 @@ Message
 </tr>
 </thead>
 <tbody>
+<tr>
+<td>
+Rmd
+</td>
+<td>
+<a href="https://github.com/FabioBedin/OC_Nezi/blob/66a229c24654952ca2a5d583d329ede22dac2cd5/analysis/T1_vs_T2_new_filter.Rmd" target="_blank">66a229c</a>
+</td>
+<td>
+FabioBedin
+</td>
+<td>
+2021-07-23
+</td>
+<td>
+Final update 23-07-2021
+</td>
+</tr>
+<tr>
+<td>
+html
+</td>
+<td>
+<a href="https://rawcdn.githack.com/FabioBedin/OC_Nezi/66a229c24654952ca2a5d583d329ede22dac2cd5/docs/T1_vs_T2_new_filter.html" target="_blank">66a229c</a>
+</td>
+<td>
+FabioBedin
+</td>
+<td>
+2021-07-23
+</td>
+<td>
+Final update 23-07-2021
+</td>
+</tr>
 <tr>
 <td>
 html
