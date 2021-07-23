@@ -1,5 +1,5 @@
 ---
-title: "Ovarian cancer dataset"
+title: "LN Ovarian cancer dataset"
 site: workflowr::wflow_site
 output:
   workflowr::wflow_html:
@@ -8,38 +8,45 @@ editor_options:
   chunk_output_type: console
 ---
 
-### Strategy for analysis and visualization of Nezi Ovarian cancer dataset.
+# **Analysis workflow**
 
+#### In this project, in collaboration with Luigi Nezi, proteomics data from clinical patients with ovarian cancer are analyzed.
 
-# Analysis
+## **1.** Population analysis (T1 vs T2 vs TME1 vs TME2)
+
+***
+
++ [T1 vs T2 population](T1_vs_T2_population.html): comparison between **T1** and **T2** populations.
+  
++ [T1 vs TME1 population](T1_vs_TME1_population.html): comparison between **T1** and **TME1** populations.
+
++ [T2 vs TME2 population](T2_vs_TME2_population.html): comparison between **T2** and **TME2** populations.
+
++ [TME1 vs TME2 population](TME2_vs_TME1_population.html): comparison between **TME1** and **TME2** populations.
+
+## **2.** Single patient comparison
+
+***
+
+in this analysis I compare single patients in each conditions. 
+It is now possible to observe the unique proteins within the differential analysis thanks to imputation.
+
++ [T1 vs T2 patients](Integration_old_analysis_mixed_imputation.html): patients comparison in condition **T1** vs **T2**.
+
++ [T1 vs TME1 patients](Integration_old_analysis_T1_TME1_mixed_imputation.html): patients comparison in condition **T1** vs **TME1**.
+
++ [T2 vs TME2 patients](Integration_old_analysis_T2_TME2_mixed_imputation.html): patients comparison in condition **T2** vs **TME2**.
+
+## **3.** Sub-populations anaysis
 
 The different sub-populations in the analysis are identify as sensivie **(S)**, intermediate sensitive **(IS)** and resistant **(R)** based on the relapse time.
 
 ***
 
-+ [T1 vs T2 comparison](T1_vs_T2_Perseus_imputation.html): all the possible combination between **T1** and **T2** populations.
-  - [T1 vs T2 comparison](T1_vs_T2_new_filter.html): applied a different filter (1500).
++ [T1 vs T2 sub-populations](T1_vs_T2_new_filter.html): all the possible combination between **T1** and **T2** populations.
   
-+ [T1 vs TME1 comparison](T1_vs_TME1_Perseus_imputation.html): all the possible combination between **T1** and **TME1** populations.
-  - [T1 vs TME1 comparison](T1_vs_TME1_new_filter.html): applied a different filter (1500).
++ [T1 vs TME1 sub-populations](T1_vs_TME1_new_filter.html): all the possible combination between **T1** and **TME1** populations.
 
-+ [T2 vs TME2 comparison](T2_vs_TME2_Perseus_imputation.html): all the possible combination between **T2** and **TME2** populations.
-  - [T2 vs TME2 comparison](T2_vs_TME2_new_filter.html): applied a different filter (1500).
-
-***
-
-### Old analysis integration 
-
-in this analysis I combine the previeus results obtained form single patient comparison with the new strategy. 
-It is now possible to observe the unique proteins within the differential analysis thanks to imputation.
-
-+ [T1 vs T2](Integration_old_analysis.html): patients comparison in condition **T1** vs **T2**.
-  - [T1 vs T2](Integration_old_analysis_mixed_imputation.html): mixed imputation.
-
-+ [T1 vs TME1](Integration_old_analysis_T1_TME1.html): patients comparison in condition **T1** vs **TME1**.
-  - [T1 vs TME1](Integration_old_analysis_T1_TME1_mixed_imputation.html): mixed imputation.
-
-+ [T2 vs TME2](Integration_old_analysis_T2_TME2.html): patients comparison in condition **T2** vs **TME2**.
-  - [T2 vs TME2](Integration_old_analysis_T2_TME2_mixed_imputation.html): mixed imputation.
++ [T2 vs TME2 sub-populations](T2_vs_TME2_new_filter.html): all the possible combination between **T2** and **TME2** populations.
 
 ***

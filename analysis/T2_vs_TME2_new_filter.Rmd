@@ -1,5 +1,5 @@
 ---
-title: "T2 vs TME2 comparison"
+title: "T2 vs TME2 Sub-populations anaysis"
 author: "Fabio Bedin | MS-Unit"
 output: html_document
 ---
@@ -22,12 +22,30 @@ library("enrichR")
 library("DT")
 library("stringr")
 library("patchwork")
+library("openxlsx")
 ```
 
 ```{r Custom Functions}
 
 source(here::here("code/custom_functions.R"))
 
+```
+
+```{r excel_define_wb}
+header_style <- createStyle(
+  fontSize = 12,
+  fontColour = "#0f0f0f",
+  fgFill = "#faf2ca",
+  halign = "center",
+  border = "TopBottomLeftRight"
+)
+
+body_style <- createStyle(
+  halign = "center",
+  border = "TopBottomLeftRight"
+)
+
+excel <- createWorkbook()
 ```
 
 ## Introduction
@@ -181,6 +199,34 @@ results<-get_results(dep)
 There are **`r results %>% filter(significant) %>% nrow()`** significant proteins within all comparisons.
 The following table shows the results:
 
+```{r excel_table_res}
+a <- get_df_wide(dep) %>% 
+  select(c(name, Protein.IDs, Protein.names, starts_with(conditions), -ends_with(c("CI.R", "CI.L")))) %>% 
+  relocate(contains("_vs_"), .after = where(is.character)) %>% 
+  dplyr::rename_with(., ~ gsub(pattern = "^", replacement = "LFQ_intensity_", .), !contains(c("_vs_", "name", "Protein."))) %>%
+  dplyr::rename_with(., ~ gsub(pattern = "....$", replacement = "FC", .), ends_with("_diff")) %>%
+  relocate(contains("_significant"), .before = starts_with("name")) %>% 
+  mutate(across(ends_with("_significant"), ~ if_else(.x, "+", ""))) %>% 
+  mutate(across(contains(c("_p.adj", "_p.val")), format, scientific = T, digits = 2)) %>% 
+  mutate(across(contains(c("LFQ", "FC")), .fns = ~ round(.x, digits = 2))) 
+
+test <- "Multiple_comparisons_results"
+
+addWorksheet(excel, sheetName = test, gridLines = F)
+
+writeDataTable(excel, sheet = test, x = a, keepNA = T, na.string = "NaN")
+
+n_row <- a %>% nrow() + 1
+
+n_col <- a %>% ncol()
+
+setColWidths(excel, sheet = test, cols = 1:n_col, widths = 21)
+
+addStyle(excel, sheet = test, style = header_style, rows = 1, cols = 1:n_col, gridExpand = T)
+
+addStyle(excel, sheet = test, style = body_style, rows = 2:n_row, cols = 1:n_col, gridExpand = T)
+```
+
 ```{r significant_table}
 results %>% 
   filter(significant) %>%
@@ -193,9 +239,12 @@ results %>%
   relocate(comparison) %>% 
   mutate(across(ends_with(c("p.val", "p.adj")), format, scientific = T, digits = 2)) %>% 
   mutate(significant = str_to_title(significant)) %>% 
+  dplyr::rename(FC = ratio) %>%
   DT::datatable(options = list(
   columnDefs = list(list(className = 'dt-center', targets = 1:7)),
-  pageLength = 15))
+  pageLength = 15)) %>% 
+  formatStyle('FC', backgroundColor = styleInterval(c(-1, 1), c('lightblue', 'white', 'tomato'))) %>% 
+  formatStyle('significant', color = styleEqual(c("True", "False"), c('green', 'red')))
 ```
 
 
@@ -283,7 +332,12 @@ plot_volcano(dep, contrast=cont, add_names=T,label_size=4,adjusted = F)
 ```
 
 ```{r T1}
-results %>%  select(starts_with("name") | starts_with(cont)) %>% filter(across(ends_with("significant"))) %>% arrange(across(ends_with("p.adj"))) %>% mutate(across(2:3, format, scientific = T, digits = 2)) %>% dplyr::rename_with(~ tolower(gsub(paste0(cont,"_"), "", .x)), .cols = starts_with(cont)) %>%  DT::datatable()
+results %>%  select(starts_with("name") | starts_with(cont)) %>% filter(across(ends_with("significant"))) %>% arrange(across(ends_with("p.adj"))) %>% mutate(across(2:3, format, scientific = T, digits = 2)) %>% dplyr::rename_with(~ tolower(gsub(paste0(cont,"_"), "", .x)), .cols = starts_with(cont)) %>%  dplyr::rename(FC = ratio) %>%
+  DT::datatable(options = list(
+  columnDefs = list(list(className = 'dt-center', targets = 1:5)),
+  pageLength = 10)) %>% 
+  formatStyle('FC', backgroundColor = styleInterval(c(-1, 1), c('lightblue', 'white', 'tomato'))) %>% 
+  formatStyle('significant', color = styleEqual(c("True", "False"), c('green', 'red')))
 ```
 
 #### Unique
@@ -308,7 +362,12 @@ plot_volcano(dep, contrast=cont, add_names=T,label_size=4,adjusted = F)
 ```
 
 ```{r T5}
-results %>%  select(starts_with("name") | starts_with(cont)) %>% filter(across(ends_with("significant"))) %>% arrange(across(ends_with("p.adj"))) %>% mutate(across(2:3, format, scientific = T, digits = 2)) %>% dplyr::rename_with(~ tolower(gsub(paste0(cont,"_"), "", .x)), .cols = starts_with(cont)) %>%  DT::datatable()
+results %>%  select(starts_with("name") | starts_with(cont)) %>% filter(across(ends_with("significant"))) %>% arrange(across(ends_with("p.adj"))) %>% mutate(across(2:3, format, scientific = T, digits = 2)) %>% dplyr::rename_with(~ tolower(gsub(paste0(cont,"_"), "", .x)), .cols = starts_with(cont)) %>%  dplyr::rename(FC = ratio) %>%
+  DT::datatable(options = list(
+  columnDefs = list(list(className = 'dt-center', targets = 1:5)),
+  pageLength = 10)) %>% 
+  formatStyle('FC', backgroundColor = styleInterval(c(-1, 1), c('lightblue', 'white', 'tomato'))) %>% 
+  formatStyle('significant', color = styleEqual(c("True", "False"), c('green', 'red')))
 ```
 
 #### Unique
@@ -333,7 +392,12 @@ plot_volcano(dep, contrast=cont, add_names=T,label_size=4,adjusted = F)
 ```
 
 ```{r T3}
-results %>%  select(starts_with("name") | starts_with(cont)) %>% filter(across(ends_with("significant"))) %>% arrange(across(ends_with("p.adj"))) %>% mutate(across(2:3, format, scientific = T, digits = 2)) %>% dplyr::rename_with(~ tolower(gsub(paste0(cont,"_"), "", .x)), .cols = starts_with(cont)) %>%  DT::datatable()
+results %>%  select(starts_with("name") | starts_with(cont)) %>% filter(across(ends_with("significant"))) %>% arrange(across(ends_with("p.adj"))) %>% mutate(across(2:3, format, scientific = T, digits = 2)) %>% dplyr::rename_with(~ tolower(gsub(paste0(cont,"_"), "", .x)), .cols = starts_with(cont)) %>%  dplyr::rename(FC = ratio) %>%
+  DT::datatable(options = list(
+  columnDefs = list(list(className = 'dt-center', targets = 1:5)),
+  pageLength = 10)) %>% 
+  formatStyle('FC', backgroundColor = styleInterval(c(-1, 1), c('lightblue', 'white', 'tomato'))) %>% 
+  formatStyle('significant', color = styleEqual(c("True", "False"), c('green', 'red')))
 ```
 
 #### Unique
@@ -347,6 +411,25 @@ plot_volcano_2(dep, contrast=cont, add_names=T,label_size=4,adjusted = F)
 ```{r T4}
 results %>%  select(starts_with("name") | starts_with(cont)) %>% filter(name %in% unique_vec) %>% arrange(across(ends_with("p.adj"))) %>% mutate(across(2:3, format, scientific = T, digits = 2)) %>% dplyr::rename_with(~ tolower(gsub(paste0(cont,"_"), "", .x)), .cols = starts_with(cont)) %>% DT::datatable()
 ```
+
+### Volcano Plots TME2_R vs TME2_S {.tabset}
+
+#### Significant
+
+```{r V55,warning=FALSE, fig.height = 8, fig.width = 8}
+cont <- "TME2_R_vs_TME2_S"
+plot_volcano(dep, contrast=cont, add_names=T,label_size=4,adjusted = F)
+```
+
+```{r T55}
+results %>%  select(starts_with("name") | starts_with(cont)) %>% filter(across(ends_with("significant"))) %>% arrange(across(ends_with("p.adj"))) %>% mutate(across(2:3, format, scientific = T, digits = 2)) %>% dplyr::rename_with(~ tolower(gsub(paste0(cont,"_"), "", .x)), .cols = starts_with(cont)) %>%  dplyr::rename(FC = ratio) %>%
+  DT::datatable(options = list(
+  columnDefs = list(list(className = 'dt-center', targets = 1:5)),
+  pageLength = 10)) %>% 
+  formatStyle('FC', backgroundColor = styleInterval(c(-1, 1), c('lightblue', 'white', 'tomato'))) %>% 
+  formatStyle('significant', color = styleEqual(c("True", "False"), c('green', 'red')))
+```
+
 
 ## Multiple sample ANOVA test {.tabset .tabset-fade .tabset-pills}
 
@@ -642,3 +725,35 @@ treemap(
 ## {-}
 
 ***
+```{r excel_anova}
+a <- anova_table %>%
+  as.data.frame() %>%
+  relocate(starts_with("T"), .after = last_col()) %>% 
+  select(-Majority.protein.IDs) %>% 
+  relocate(c(X.Log.ANOVA.p.value, ANOVA.q.value), .after = Gene.names) %>% 
+  relocate(Gene.names, .after = Cluster) %>% 
+  dplyr::rename(ANOVA.p.value = X.Log.ANOVA.p.value) %>% 
+  dplyr::rename_with(., ~ gsub(pattern = "^", replacement = "Z_Score_", .), starts_with("T")) %>%
+  mutate(across(contains(".value"), format, scientific = T, digits = 2)) %>% 
+  mutate(across(contains("Z_Score_"), .fns = ~ round(.x, digits = 2))) 
+
+test <- "ANOVA_results"
+
+addWorksheet(excel, sheetName = test, gridLines = F)
+
+writeDataTable(excel, sheet = test, x = a, keepNA = T, na.string = "NaN")
+
+n_row <- a %>% nrow() + 1
+
+n_col <- a %>% ncol()
+
+setColWidths(excel, sheet = test, cols = 1:n_col, widths = 21)
+
+addStyle(excel, sheet = test, style = header_style, rows = 1, cols = 1:n_col, gridExpand = T)
+
+addStyle(excel, sheet = test, style = body_style, rows = 2:n_row, cols = 1:n_col, gridExpand = T)
+```
+
+```{r save_excel}
+saveWorkbook(excel, here::here("output/results_T2_vs_TME2_sub-populations.xlsx"), overwrite = T)
+```

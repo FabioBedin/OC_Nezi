@@ -1,7 +1,7 @@
-name: OC_Patients_comparisons
+name: LN OvCa dataset
 output_dir: ../docs
 navbar:
-  title: OC_Patients_comparisons
+  title: LN OvCa dataset
   left:
   - text: Home
     href: index.html

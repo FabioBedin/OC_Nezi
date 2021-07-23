@@ -1,9 +1,9 @@
 ---
-title: "Integration old analysis T1 vs TME1"
+title: "Single patient comparison T1 vs TME1"
 author: "Fabio Bedin | MS-Unit"
 output: html_document
 ---
-# Integration old analysis
+# Single patient comparison
 
 ***
 
@@ -26,11 +26,28 @@ library("datapasta")
 library("visdat")
 library("naniar")
 library("gprofiler2")
+library("openxlsx")
 ```
 
 ```{r Custom Functions}
 source(here::here("code/custom_functions.R"))
+```
 
+```{r excel_define_wb}
+header_style <- createStyle(
+  fontSize = 12,
+  fontColour = "#0f0f0f",
+  fgFill = "#faf2ca",
+  halign = "center",
+  border = "TopBottomLeftRight"
+)
+
+body_style <- createStyle(
+  halign = "center",
+  border = "TopBottomLeftRight"
+)
+
+excel <- createWorkbook()
 ```
 
 Summary of previeus results of **unique** proteins:
@@ -90,10 +107,46 @@ data_diff <- test_diff_BH(mixed_imputation, type = "all")
 dep <- add_rejections(data_diff, alpha = FDR, lfc = FC)
 
 results<-get_results(dep)
+
+results_P1 <- results %>% filter(significant) %>% pull(name)
+
+results_P1_int <- assay(data_diff) %>% 
+  as.data.frame() %>% 
+  rownames_to_column() %>% 
+  filter(rowname == "SNRPD3") %>% 
+  pivot_longer(!rowname, names_to = "sample", values_to = "intensity")
 ```
 
 There are **`r results %>% filter(significant) %>% nrow()`** significant proteins in **`r test`** comparison.
 
+```{r excel_res_table_1}
+a <- get_df_wide(dep) %>% 
+  select(c(name, Protein.IDs, Protein.names, starts_with(conditions), -ends_with(c("CI.R", "CI.L")))) %>% 
+  dplyr::rename_with(., ~ gsub(pattern = paste0(test, "_"), replacement = "", .), starts_with(test)) %>% 
+  dplyr::rename_with(., ~ gsub(pattern = "^", replacement = "LFQ_intensity_", .), starts_with(conditions)) %>%
+  dplyr::rename(FC = diff) %>% 
+  mutate(significant = if_else(significant, "+", "")) %>% 
+  arrange(desc(significant), p.val) %>% 
+  mutate(across(c(p.adj, p.val), format, scientific = T, digits = 2)) %>% 
+  mutate(across(starts_with(c("LFQ", "FC")), .fns = ~ round(.x, digits = 2))) %>% 
+  relocate(significant) %>%
+  relocate(starts_with("LFQ"), .after = p.val)
+  
+
+addWorksheet(excel, sheetName = test, gridLines = F)
+
+writeDataTable(excel, sheet = test, x = a, keepNA = T, na.string = "NaN")
+
+n_row <- a %>% nrow() + 1
+
+n_col <- a %>% ncol()
+
+setColWidths(excel, sheet = test, cols = 1:n_col, widths = 21)
+
+addStyle(excel, sheet = test, style = header_style, rows = 1, cols = 1:n_col, gridExpand = T)
+
+addStyle(excel, sheet = test, style = body_style, rows = 2:n_row, cols = 1:n_col, gridExpand = T)
+```
 
 #### **Visualization of the results:** {.tabset}
 
@@ -120,9 +173,12 @@ results %>%
   select(-comparison) %>% 
   mutate(across(ends_with(c("p.val", "p.adj")), format, scientific = T, digits = 2)) %>% 
   mutate(significant = str_to_title(significant)) %>% 
+  dplyr::rename(FC = ratio) %>%
   DT::datatable(options = list(
   columnDefs = list(list(className = 'dt-center', targets = 1:6)),
-  pageLength = 10))
+  pageLength = 10)) %>% 
+  formatStyle('FC', backgroundColor = styleInterval(c(-1, 1), c('lightblue', 'white', 'tomato'))) %>% 
+  formatStyle('significant', color = styleEqual(c("True", "False"), c('green', 'red')))
 ```
 
 ##### Unique
@@ -131,6 +187,45 @@ results %>%
 unique_vec <- c("ACAD8", "AGK", "BRD4", "CACNA2D1", "CAPS", "CCDC58", "CIRH1A", "IRGQ", "LIPE", "METTL14", "MFF", "MRPS24", "NOL6", "PPIF", "PRKCD", "PRKCI", "PTGES3", "RAB18", "RPL37A", "SNCG", "TBC1D15", "THY1", "TKTL1", "TM9SF3", "UQCC2", "ZNF185")
 
 plot_volcano_2(dep, contrast=test, add_names=T,label_size=4,adjusted = F)
+```
+
+```{r unique_tab_1}
+a <- unique_pair(data_filt, conditions = conditions, table = T)
+
+b <- a %>% 
+  pivot_longer(!starts_with(c("name", "unique_", "Protein.")), names_to = "samples", values_to = "intensity") %>% 
+  mutate(cond = gsub(pattern = "..$", "", samples)) %>% 
+  mutate(intensity = case_when(is.na(intensity) ~ 0, TRUE ~ as.numeric(1))) %>%
+  group_by(name, cond) %>% 
+  mutate(Unique_class_B = case_when(sum(intensity) == 3 ~ "+")) %>% 
+  mutate(Unique_class_A = case_when(sum(intensity) == 4 ~ "+")) %>% 
+  ungroup() %>% 
+  select(-cond) %>% 
+  group_by(name) %>% 
+  fill(Unique_class_B, .direction = "downup") %>% 
+  fill(Unique_class_A, .direction = "downup") %>% 
+  ungroup() %>% 
+  pivot_wider(names_from = samples, values_from = intensity) %>% 
+  select(name, Unique_class_B, Unique_class_A) %>% 
+  mutate(across(starts_with("Unique_"), ~ case_when(is.na(.x) ~ "", TRUE ~ as.character(.x))))
+
+a <- a %>% left_join(b)
+
+unique_name <- paste0("Unique_", test)
+
+addWorksheet(excel, sheetName = unique_name, gridLines = F)
+
+writeDataTable(excel, sheet = unique_name, x = a, keepNA = T, na.string = "NaN")
+
+n_row <- a %>% nrow() + 1
+
+n_col <- a %>% ncol()
+
+setColWidths(excel, sheet = unique_name, cols = 1:n_col, widths = 21)
+
+addStyle(excel, sheet = unique_name, style = header_style, rows = 1, cols = 1:n_col, gridExpand = T)
+
+addStyle(excel, sheet = unique_name, style = body_style, rows = 2:n_row, cols = 1:n_col, gridExpand = T)
 ```
 
 ##### Unique Table
@@ -207,10 +302,46 @@ data_diff <- test_diff_BH(mixed_imputation, type = "all")
 dep <- add_rejections(data_diff, alpha = FDR, lfc = FC)
 
 results<-get_results(dep)
+
+results_P2 <- results %>% filter(significant) %>% pull(name)
+
+results_P2_int <- assay(data_diff) %>% 
+  as.data.frame() %>% 
+  rownames_to_column() %>% 
+  filter(rowname == "SNRPD3") %>% 
+  pivot_longer(!rowname, names_to = "sample", values_to = "intensity")
 ```
 
 There are **`r results %>% filter(significant) %>% nrow()`** significant proteins in **`r test`** comparison.
 
+```{r excel_res_table_2}
+a <- get_df_wide(dep) %>% 
+  select(c(name, Protein.IDs, Protein.names, starts_with(conditions), -ends_with(c("CI.R", "CI.L")))) %>% 
+  dplyr::rename_with(., ~ gsub(pattern = paste0(test, "_"), replacement = "", .), starts_with(test)) %>% 
+  dplyr::rename_with(., ~ gsub(pattern = "^", replacement = "LFQ_intensity_", .), starts_with(conditions)) %>%
+  dplyr::rename(FC = diff) %>% 
+  mutate(significant = if_else(significant, "+", "")) %>% 
+  arrange(desc(significant), p.val) %>% 
+  mutate(across(c(p.adj, p.val), format, scientific = T, digits = 2)) %>% 
+  mutate(across(starts_with(c("LFQ", "FC")), .fns = ~ round(.x, digits = 2))) %>% 
+  relocate(significant) %>%
+  relocate(starts_with("LFQ"), .after = p.val)
+  
+
+addWorksheet(excel, sheetName = test, gridLines = F)
+
+writeDataTable(excel, sheet = test, x = a, keepNA = T, na.string = "NaN")
+
+n_row <- a %>% nrow() + 1
+
+n_col <- a %>% ncol()
+
+setColWidths(excel, sheet = test, cols = 1:n_col, widths = 21)
+
+addStyle(excel, sheet = test, style = header_style, rows = 1, cols = 1:n_col, gridExpand = T)
+
+addStyle(excel, sheet = test, style = body_style, rows = 2:n_row, cols = 1:n_col, gridExpand = T)
+```
 
 #### **Visualization of the results:** {.tabset}
 
@@ -237,9 +368,12 @@ results %>%
   select(-comparison) %>% 
   mutate(across(ends_with(c("p.val", "p.adj")), format, scientific = T, digits = 2)) %>% 
   mutate(significant = str_to_title(significant)) %>% 
+  dplyr::rename(FC = ratio) %>%
   DT::datatable(options = list(
   columnDefs = list(list(className = 'dt-center', targets = 1:6)),
-  pageLength = 10))
+  pageLength = 10)) %>% 
+  formatStyle('FC', backgroundColor = styleInterval(c(-1, 1), c('lightblue', 'white', 'tomato'))) %>% 
+  formatStyle('significant', color = styleEqual(c("True", "False"), c('green', 'red')))
 ```
 
 ##### Unique
@@ -248,6 +382,45 @@ results %>%
 unique_vec <- "IGHV3-15"
 
 plot_volcano_2(dep, contrast=test, add_names=T,label_size=4,adjusted = F)
+```
+
+```{r unique_tab_2}
+a <- unique_pair(data_filt, conditions = conditions, table = T)
+
+b <- a %>% 
+  pivot_longer(!starts_with(c("name", "unique_", "Protein.")), names_to = "samples", values_to = "intensity") %>% 
+  mutate(cond = gsub(pattern = "..$", "", samples)) %>% 
+  mutate(intensity = case_when(is.na(intensity) ~ 0, TRUE ~ as.numeric(1))) %>%
+  group_by(name, cond) %>% 
+  mutate(Unique_class_B = case_when(sum(intensity) == 3 ~ "+")) %>% 
+  mutate(Unique_class_A = case_when(sum(intensity) == 4 ~ "+")) %>% 
+  ungroup() %>% 
+  select(-cond) %>% 
+  group_by(name) %>% 
+  fill(Unique_class_B, .direction = "downup") %>% 
+  fill(Unique_class_A, .direction = "downup") %>% 
+  ungroup() %>% 
+  pivot_wider(names_from = samples, values_from = intensity) %>% 
+  select(name, Unique_class_B, Unique_class_A) %>% 
+  mutate(across(starts_with("Unique_"), ~ case_when(is.na(.x) ~ "", TRUE ~ as.character(.x))))
+
+a <- a %>% left_join(b)
+
+unique_name <- paste0("Unique_", test)
+
+addWorksheet(excel, sheetName = unique_name, gridLines = F)
+
+writeDataTable(excel, sheet = unique_name, x = a, keepNA = T, na.string = "NaN")
+
+n_row <- a %>% nrow() + 1
+
+n_col <- a %>% ncol()
+
+setColWidths(excel, sheet = unique_name, cols = 1:n_col, widths = 21)
+
+addStyle(excel, sheet = unique_name, style = header_style, rows = 1, cols = 1:n_col, gridExpand = T)
+
+addStyle(excel, sheet = unique_name, style = body_style, rows = 2:n_row, cols = 1:n_col, gridExpand = T)
 ```
 
 ##### Unique Table
@@ -323,10 +496,46 @@ data_diff <- test_diff_BH(mixed_imputation, type = "all")
 dep <- add_rejections(data_diff, alpha = FDR, lfc = FC)
 
 results<-get_results(dep)
+
+results_P3 <- results %>% filter(significant) %>% pull(name)
+
+results_P3_int <- assay(data_diff) %>% 
+  as.data.frame() %>% 
+  rownames_to_column() %>% 
+  filter(rowname == "SNRPD3") %>% 
+  pivot_longer(!rowname, names_to = "sample", values_to = "intensity")
 ```
 
 There are **`r results %>% filter(significant) %>% nrow()`** significant proteins in **`r test`** comparison.
 
+```{r excel_res_table_3}
+a <- get_df_wide(dep) %>% 
+  select(c(name, Protein.IDs, Protein.names, starts_with(conditions), -ends_with(c("CI.R", "CI.L")))) %>% 
+  dplyr::rename_with(., ~ gsub(pattern = paste0(test, "_"), replacement = "", .), starts_with(test)) %>% 
+  dplyr::rename_with(., ~ gsub(pattern = "^", replacement = "LFQ_intensity_", .), starts_with(conditions)) %>%
+  dplyr::rename(FC = diff) %>% 
+  mutate(significant = if_else(significant, "+", "")) %>% 
+  arrange(desc(significant), p.val) %>% 
+  mutate(across(c(p.adj, p.val), format, scientific = T, digits = 2)) %>% 
+  mutate(across(starts_with(c("LFQ", "FC")), .fns = ~ round(.x, digits = 2))) %>% 
+  relocate(significant) %>%
+  relocate(starts_with("LFQ"), .after = p.val)
+  
+
+addWorksheet(excel, sheetName = test, gridLines = F)
+
+writeDataTable(excel, sheet = test, x = a, keepNA = T, na.string = "NaN")
+
+n_row <- a %>% nrow() + 1
+
+n_col <- a %>% ncol()
+
+setColWidths(excel, sheet = test, cols = 1:n_col, widths = 21)
+
+addStyle(excel, sheet = test, style = header_style, rows = 1, cols = 1:n_col, gridExpand = T)
+
+addStyle(excel, sheet = test, style = body_style, rows = 2:n_row, cols = 1:n_col, gridExpand = T)
+```
 
 #### **Visualization of the results:** {.tabset}
 
@@ -353,9 +562,12 @@ results %>%
   select(-comparison) %>% 
   mutate(across(ends_with(c("p.val", "p.adj")), format, scientific = T, digits = 2)) %>% 
   mutate(significant = str_to_title(significant)) %>% 
+  dplyr::rename(FC = ratio) %>%
   DT::datatable(options = list(
   columnDefs = list(list(className = 'dt-center', targets = 1:6)),
-  pageLength = 10))
+  pageLength = 10)) %>% 
+  formatStyle('FC', backgroundColor = styleInterval(c(-1, 1), c('lightblue', 'white', 'tomato'))) %>% 
+  formatStyle('significant', color = styleEqual(c("True", "False"), c('green', 'red')))
 ```
 
 ##### Unique
@@ -364,6 +576,45 @@ results %>%
 unique_vec <- c("MBLAC2", "PLIN1", "PTGES3", "RPL37A", "XRCC1", "CCDC58", "CD47", "CPSF6", "CST1", "CSTF3", "FKBP8", "FNTA", "GTF3C1", "HK2", "MBLAC2", "MUC16", "PCDHGA10", "PLD3", "PLIN1", "PPIF", "PTGES3", "QTRT1", "RAD21", "RPL37A", "S100A1", "SLC34A2", "TRIM33", "TTR", "TUBGCP2", "U2SURP", "UTS2", "WISP2", "XPC")
 
 plot_volcano_2(dep, contrast=test, add_names=T,label_size=4,adjusted = F)
+```
+
+```{r unique_tab_3}
+a <- unique_pair(data_filt, conditions = conditions, table = T)
+
+b <- a %>% 
+  pivot_longer(!starts_with(c("name", "unique_", "Protein.")), names_to = "samples", values_to = "intensity") %>% 
+  mutate(cond = gsub(pattern = "..$", "", samples)) %>% 
+  mutate(intensity = case_when(is.na(intensity) ~ 0, TRUE ~ as.numeric(1))) %>%
+  group_by(name, cond) %>% 
+  mutate(Unique_class_B = case_when(sum(intensity) == 3 ~ "+")) %>% 
+  mutate(Unique_class_A = case_when(sum(intensity) == 4 ~ "+")) %>% 
+  ungroup() %>% 
+  select(-cond) %>% 
+  group_by(name) %>% 
+  fill(Unique_class_B, .direction = "downup") %>% 
+  fill(Unique_class_A, .direction = "downup") %>% 
+  ungroup() %>% 
+  pivot_wider(names_from = samples, values_from = intensity) %>% 
+  select(name, Unique_class_B, Unique_class_A) %>% 
+  mutate(across(starts_with("Unique_"), ~ case_when(is.na(.x) ~ "", TRUE ~ as.character(.x))))
+
+a <- a %>% left_join(b)
+
+unique_name <- paste0("Unique_", test)
+
+addWorksheet(excel, sheetName = unique_name, gridLines = F)
+
+writeDataTable(excel, sheet = unique_name, x = a, keepNA = T, na.string = "NaN")
+
+n_row <- a %>% nrow() + 1
+
+n_col <- a %>% ncol()
+
+setColWidths(excel, sheet = unique_name, cols = 1:n_col, widths = 21)
+
+addStyle(excel, sheet = unique_name, style = header_style, rows = 1, cols = 1:n_col, gridExpand = T)
+
+addStyle(excel, sheet = unique_name, style = body_style, rows = 2:n_row, cols = 1:n_col, gridExpand = T)
 ```
 
 ##### Unique Table
@@ -438,10 +689,46 @@ data_diff <- test_diff_BH(mixed_imputation, type = "all")
 dep <- add_rejections(data_diff, alpha = FDR, lfc = FC)
 
 results<-get_results(dep)
+
+results_P4 <- results %>% filter(significant) %>% pull(name)
+
+results_P4_int <- assay(data_diff) %>% 
+  as.data.frame() %>% 
+  rownames_to_column() %>% 
+  filter(rowname == "SNRPD3") %>% 
+  pivot_longer(!rowname, names_to = "sample", values_to = "intensity")
 ```
 
 There are **`r results %>% filter(significant) %>% nrow()`** significant proteins in **`r test`** comparison.
 
+```{r excel_res_table_4}
+a <- get_df_wide(dep) %>% 
+  select(c(name, Protein.IDs, Protein.names, starts_with(conditions), -ends_with(c("CI.R", "CI.L")))) %>% 
+  dplyr::rename_with(., ~ gsub(pattern = paste0(test, "_"), replacement = "", .), starts_with(test)) %>% 
+  dplyr::rename_with(., ~ gsub(pattern = "^", replacement = "LFQ_intensity_", .), starts_with(conditions)) %>%
+  dplyr::rename(FC = diff) %>% 
+  mutate(significant = if_else(significant, "+", "")) %>% 
+  arrange(desc(significant), p.val) %>% 
+  mutate(across(c(p.adj, p.val), format, scientific = T, digits = 2)) %>% 
+  mutate(across(starts_with(c("LFQ", "FC")), .fns = ~ round(.x, digits = 2))) %>% 
+  relocate(significant) %>%
+  relocate(starts_with("LFQ"), .after = p.val)
+  
+
+addWorksheet(excel, sheetName = test, gridLines = F)
+
+writeDataTable(excel, sheet = test, x = a, keepNA = T, na.string = "NaN")
+
+n_row <- a %>% nrow() + 1
+
+n_col <- a %>% ncol()
+
+setColWidths(excel, sheet = test, cols = 1:n_col, widths = 21)
+
+addStyle(excel, sheet = test, style = header_style, rows = 1, cols = 1:n_col, gridExpand = T)
+
+addStyle(excel, sheet = test, style = body_style, rows = 2:n_row, cols = 1:n_col, gridExpand = T)
+```
 
 #### **Visualization of the results:** {.tabset}
 
@@ -468,9 +755,12 @@ results %>%
   select(-comparison) %>% 
   mutate(across(ends_with(c("p.val", "p.adj")), format, scientific = T, digits = 2)) %>% 
   mutate(significant = str_to_title(significant)) %>% 
+  dplyr::rename(FC = ratio) %>%
   DT::datatable(options = list(
   columnDefs = list(list(className = 'dt-center', targets = 1:6)),
-  pageLength = 10))
+  pageLength = 10)) %>% 
+  formatStyle('FC', backgroundColor = styleInterval(c(-1, 1), c('lightblue', 'white', 'tomato'))) %>% 
+  formatStyle('significant', color = styleEqual(c("True", "False"), c('green', 'red')))
 ```
 
 ##### Unique
@@ -479,6 +769,45 @@ results %>%
 unique_vec <- c("MBLAC2", "PLIN1", "PTGES3", "RPL37A", "XRCC1")
 
 plot_volcano_2(dep, contrast=test, add_names=T,label_size=4,adjusted = F)
+```
+
+```{r unique_tab_4}
+a <- unique_pair(data_filt, conditions = conditions, table = T)
+
+b <- a %>% 
+  pivot_longer(!starts_with(c("name", "unique_", "Protein.")), names_to = "samples", values_to = "intensity") %>% 
+  mutate(cond = gsub(pattern = "..$", "", samples)) %>% 
+  mutate(intensity = case_when(is.na(intensity) ~ 0, TRUE ~ as.numeric(1))) %>%
+  group_by(name, cond) %>% 
+  mutate(Unique_class_B = case_when(sum(intensity) == 3 ~ "+")) %>% 
+  mutate(Unique_class_A = case_when(sum(intensity) == 4 ~ "+")) %>% 
+  ungroup() %>% 
+  select(-cond) %>% 
+  group_by(name) %>% 
+  fill(Unique_class_B, .direction = "downup") %>% 
+  fill(Unique_class_A, .direction = "downup") %>% 
+  ungroup() %>% 
+  pivot_wider(names_from = samples, values_from = intensity) %>% 
+  select(name, Unique_class_B, Unique_class_A) %>% 
+  mutate(across(starts_with("Unique_"), ~ case_when(is.na(.x) ~ "", TRUE ~ as.character(.x))))
+
+a <- a %>% left_join(b)
+
+unique_name <- paste0("Unique_", test)
+
+addWorksheet(excel, sheetName = unique_name, gridLines = F)
+
+writeDataTable(excel, sheet = unique_name, x = a, keepNA = T, na.string = "NaN")
+
+n_row <- a %>% nrow() + 1
+
+n_col <- a %>% ncol()
+
+setColWidths(excel, sheet = unique_name, cols = 1:n_col, widths = 21)
+
+addStyle(excel, sheet = unique_name, style = header_style, rows = 1, cols = 1:n_col, gridExpand = T)
+
+addStyle(excel, sheet = unique_name, style = body_style, rows = 2:n_row, cols = 1:n_col, gridExpand = T)
 ```
 
 ##### Unique Table
@@ -554,10 +883,46 @@ data_diff <- test_diff_BH(mixed_imputation, type = "all")
 dep <- add_rejections(data_diff, alpha = FDR, lfc = FC)
 
 results<-get_results(dep)
+
+results_P5 <- results %>% filter(significant) %>% pull(name)
+
+results_P5_int <- assay(data_diff) %>% 
+  as.data.frame() %>% 
+  rownames_to_column() %>% 
+  filter(rowname == "SNRPD3") %>% 
+  pivot_longer(!rowname, names_to = "sample", values_to = "intensity")
 ```
 
 There are **`r results %>% filter(significant) %>% nrow()`** significant proteins in **`r test`** comparison.
 
+```{r excel_res_table_5}
+a <- get_df_wide(dep) %>% 
+  select(c(name, Protein.IDs, Protein.names, starts_with(conditions), -ends_with(c("CI.R", "CI.L")))) %>% 
+  dplyr::rename_with(., ~ gsub(pattern = paste0(test, "_"), replacement = "", .), starts_with(test)) %>% 
+  dplyr::rename_with(., ~ gsub(pattern = "^", replacement = "LFQ_intensity_", .), starts_with(conditions)) %>%
+  dplyr::rename(FC = diff) %>% 
+  mutate(significant = if_else(significant, "+", "")) %>% 
+  arrange(desc(significant), p.val) %>% 
+  mutate(across(c(p.adj, p.val), format, scientific = T, digits = 2)) %>% 
+  mutate(across(starts_with(c("LFQ", "FC")), .fns = ~ round(.x, digits = 2))) %>% 
+  relocate(significant) %>%
+  relocate(starts_with("LFQ"), .after = p.val)
+  
+
+addWorksheet(excel, sheetName = test, gridLines = F)
+
+writeDataTable(excel, sheet = test, x = a, keepNA = T, na.string = "NaN")
+
+n_row <- a %>% nrow() + 1
+
+n_col <- a %>% ncol()
+
+setColWidths(excel, sheet = test, cols = 1:n_col, widths = 21)
+
+addStyle(excel, sheet = test, style = header_style, rows = 1, cols = 1:n_col, gridExpand = T)
+
+addStyle(excel, sheet = test, style = body_style, rows = 2:n_row, cols = 1:n_col, gridExpand = T)
+```
 
 #### **Visualization of the results:** {.tabset}
 
@@ -584,9 +949,12 @@ results %>%
   select(-comparison) %>% 
   mutate(across(ends_with(c("p.val", "p.adj")), format, scientific = T, digits = 2)) %>% 
   mutate(significant = str_to_title(significant)) %>% 
+  dplyr::rename(FC = ratio) %>%
   DT::datatable(options = list(
   columnDefs = list(list(className = 'dt-center', targets = 1:6)),
-  pageLength = 10))
+  pageLength = 10)) %>% 
+  formatStyle('FC', backgroundColor = styleInterval(c(-1, 1), c('lightblue', 'white', 'tomato'))) %>% 
+  formatStyle('significant', color = styleEqual(c("True", "False"), c('green', 'red')))
 ```
 
 ##### Unique
@@ -595,6 +963,45 @@ results %>%
 unique_vec <- c("NDUFA6", "SNRPD3", "PON1", "AKR1C3", "ARL6IP4", "ATAD1", "C8orf82", "CIAO1", "CIRH1A", "DDX56", "EYA4", "FAM177A1", "HEXIM1", "HINT2", "HMGA1", "IRGQ", "KATNAL2", "LAMTOR1", "LLPH", "MBNL1", "MCM5", "MVD", "NDUFA6", "NFKB1", "NFS1", "NFX1", "NUCKS1", "OPTN", "POLR2L", "PON2", "RAD21", "RBM28", "RPL29", "SEC61B", "SF3B4", "SLC9A3R2", "SUPT6H", "TIMMDC1", "TRA2A")
 
 plot_volcano_2(dep, contrast=test, add_names=T,label_size=4,adjusted = F)
+```
+
+```{r unique_tab_5}
+a <- unique_pair(data_filt, conditions = conditions, table = T)
+
+b <- a %>% 
+  pivot_longer(!starts_with(c("name", "unique_", "Protein.")), names_to = "samples", values_to = "intensity") %>% 
+  mutate(cond = gsub(pattern = "..$", "", samples)) %>% 
+  mutate(intensity = case_when(is.na(intensity) ~ 0, TRUE ~ as.numeric(1))) %>%
+  group_by(name, cond) %>% 
+  mutate(Unique_class_B = case_when(sum(intensity) == 3 ~ "+")) %>% 
+  mutate(Unique_class_A = case_when(sum(intensity) == 4 ~ "+")) %>% 
+  ungroup() %>% 
+  select(-cond) %>% 
+  group_by(name) %>% 
+  fill(Unique_class_B, .direction = "downup") %>% 
+  fill(Unique_class_A, .direction = "downup") %>% 
+  ungroup() %>% 
+  pivot_wider(names_from = samples, values_from = intensity) %>% 
+  select(name, Unique_class_B, Unique_class_A) %>% 
+  mutate(across(starts_with("Unique_"), ~ case_when(is.na(.x) ~ "", TRUE ~ as.character(.x))))
+
+a <- a %>% left_join(b)
+
+unique_name <- paste0("Unique_", test)
+
+addWorksheet(excel, sheetName = unique_name, gridLines = F)
+
+writeDataTable(excel, sheet = unique_name, x = a, keepNA = T, na.string = "NaN")
+
+n_row <- a %>% nrow() + 1
+
+n_col <- a %>% ncol()
+
+setColWidths(excel, sheet = unique_name, cols = 1:n_col, widths = 21)
+
+addStyle(excel, sheet = unique_name, style = header_style, rows = 1, cols = 1:n_col, gridExpand = T)
+
+addStyle(excel, sheet = unique_name, style = body_style, rows = 2:n_row, cols = 1:n_col, gridExpand = T)
 ```
 
 ##### Unique Table
@@ -669,10 +1076,46 @@ data_diff <- test_diff_BH(mixed_imputation, type = "all")
 dep <- add_rejections(data_diff, alpha = FDR, lfc = FC)
 
 results<-get_results(dep)
+
+results_P7 <- results %>% filter(significant) %>% pull(name)
+
+results_P7_int <- assay(data_diff) %>% 
+  as.data.frame() %>% 
+  rownames_to_column() %>% 
+  filter(rowname == "SNRPD3") %>% 
+  pivot_longer(!rowname, names_to = "sample", values_to = "intensity")
 ```
 
 There are **`r results %>% filter(significant) %>% nrow()`** significant proteins in **`r test`** comparison.
 
+```{r excel_res_table_7}
+a <- get_df_wide(dep) %>% 
+  select(c(name, Protein.IDs, Protein.names, starts_with(conditions), -ends_with(c("CI.R", "CI.L")))) %>% 
+  dplyr::rename_with(., ~ gsub(pattern = paste0(test, "_"), replacement = "", .), starts_with(test)) %>% 
+  dplyr::rename_with(., ~ gsub(pattern = "^", replacement = "LFQ_intensity_", .), starts_with(conditions)) %>%
+  dplyr::rename(FC = diff) %>% 
+  mutate(significant = if_else(significant, "+", "")) %>% 
+  arrange(desc(significant), p.val) %>% 
+  mutate(across(c(p.adj, p.val), format, scientific = T, digits = 2)) %>% 
+  mutate(across(starts_with(c("LFQ", "FC")), .fns = ~ round(.x, digits = 2))) %>% 
+  relocate(significant) %>%
+  relocate(starts_with("LFQ"), .after = p.val)
+  
+
+addWorksheet(excel, sheetName = test, gridLines = F)
+
+writeDataTable(excel, sheet = test, x = a, keepNA = T, na.string = "NaN")
+
+n_row <- a %>% nrow() + 1
+
+n_col <- a %>% ncol()
+
+setColWidths(excel, sheet = test, cols = 1:n_col, widths = 21)
+
+addStyle(excel, sheet = test, style = header_style, rows = 1, cols = 1:n_col, gridExpand = T)
+
+addStyle(excel, sheet = test, style = body_style, rows = 2:n_row, cols = 1:n_col, gridExpand = T)
+```
 
 #### **Visualization of the results:** {.tabset}
 
@@ -699,9 +1142,12 @@ results %>%
   select(-comparison) %>% 
   mutate(across(ends_with(c("p.val", "p.adj")), format, scientific = T, digits = 2)) %>% 
   mutate(significant = str_to_title(significant)) %>% 
+  dplyr::rename(FC = ratio) %>%
   DT::datatable(options = list(
   columnDefs = list(list(className = 'dt-center', targets = 1:6)),
-  pageLength = 10))
+  pageLength = 10)) %>% 
+  formatStyle('FC', backgroundColor = styleInterval(c(-1, 1), c('lightblue', 'white', 'tomato'))) %>% 
+  formatStyle('significant', color = styleEqual(c("True", "False"), c('green', 'red')))
 ```
 
 ##### Unique
@@ -710,6 +1156,45 @@ results %>%
 unique_vec <- c("NDUFA6", "SNRPD3", "PON1", "BNIP1", "C16orf46", "COX7C", "GALNT5", "GLA", "NRAS", "OLFML3", "PCBD1", "PLP2", "S100A14", "THG1L")
 
 plot_volcano_2(dep, contrast=test, add_names=T,label_size=4,adjusted = F)
+```
+
+```{r unique_tab_7}
+a <- unique_pair(data_filt, conditions = conditions, table = T)
+
+b <- a %>% 
+  pivot_longer(!starts_with(c("name", "unique_", "Protein.")), names_to = "samples", values_to = "intensity") %>% 
+  mutate(cond = gsub(pattern = "..$", "", samples)) %>% 
+  mutate(intensity = case_when(is.na(intensity) ~ 0, TRUE ~ as.numeric(1))) %>%
+  group_by(name, cond) %>% 
+  mutate(Unique_class_B = case_when(sum(intensity) == 3 ~ "+")) %>% 
+  mutate(Unique_class_A = case_when(sum(intensity) == 4 ~ "+")) %>% 
+  ungroup() %>% 
+  select(-cond) %>% 
+  group_by(name) %>% 
+  fill(Unique_class_B, .direction = "downup") %>% 
+  fill(Unique_class_A, .direction = "downup") %>% 
+  ungroup() %>% 
+  pivot_wider(names_from = samples, values_from = intensity) %>% 
+  select(name, Unique_class_B, Unique_class_A) %>% 
+  mutate(across(starts_with("Unique_"), ~ case_when(is.na(.x) ~ "", TRUE ~ as.character(.x))))
+
+a <- a %>% left_join(b)
+
+unique_name <- paste0("Unique_", test)
+
+addWorksheet(excel, sheetName = unique_name, gridLines = F)
+
+writeDataTable(excel, sheet = unique_name, x = a, keepNA = T, na.string = "NaN")
+
+n_row <- a %>% nrow() + 1
+
+n_col <- a %>% ncol()
+
+setColWidths(excel, sheet = unique_name, cols = 1:n_col, widths = 21)
+
+addStyle(excel, sheet = unique_name, style = header_style, rows = 1, cols = 1:n_col, gridExpand = T)
+
+addStyle(excel, sheet = unique_name, style = body_style, rows = 2:n_row, cols = 1:n_col, gridExpand = T)
 ```
 
 ##### Unique Table
@@ -754,6 +1239,8 @@ publish_gosttable(GO_BP, highlight_terms = GO_BP$result[1:5,])
 
 ### Multiple queries {.tabset}
 
+Genes in commom between all patients: **`r Reduce(intersect, list(results_P1, results_P2, results_P3, results_P4, results_P5, results_P7))`**
+
 #### T1
 
 ```{r Multiple_queries_up, message=FALSE, warning=FALSE, fig.width = 7}
@@ -776,7 +1263,7 @@ multi_UP$result %>%
 
 ```
 
-#### T2
+#### TME1
 
 ```{r Multiple_queries_down, message=FALSE, warning=FALSE, fig.width = 7}
 multi_DOWN <- gost(query = list("P1" = GN_1down, "P2" = GN_2down, "P3" = GN_3down, "P4" = GN_4down, "P5" = GN_5down, "P7" = GN_7down), organism = "hsapiens", multi_query = TRUE, sources = c("GO:BP", "GO:MF", "GO:CC", "KEGG", "HP"))
@@ -798,5 +1285,28 @@ multi_DOWN$result %>%
   formatStyle('p_values_P7', backgroundColor = styleInterval(0.05, c('lightgreen', 'white')))
 ```
 
+#### SNRPD3
+
+```{r SNRPD3_plot, message=FALSE, warning=FALSE, fig.height = 7, fig.width = 10}
+all_int <- rbind(results_P1_int, results_P2_int, results_P3_int, results_P4_int, results_P5_int ,results_P7_int)
+
+ggplot(all_int, mapping = aes(x = sample, y = intensity, group = rowname)) + 
+  geom_line(color = "black") + 
+  geom_smooth(aes(group = 1)) +
+  theme(axis.title = element_text(size = 16, face = "bold"),
+        axis.text = element_text(size = 14), 
+        axis.text.x = element_text(angle = 90), 
+        plot.title = element_text(size = 20, face = "bold", hjust = 0.5),
+        panel.background = element_rect(fill = NA)) +
+  labs(title = "SNRPD3", x = "Samples", y = "log2 Intensity") + 
+  theme(axis.line = element_line(size = 0.4, linetype = "solid"), axis.text.x = element_text(vjust = 0.5)) + 
+  theme(panel.grid.major = element_line(colour = "gray90", size = 0.2), panel.grid.minor = element_line(colour = "gray90", size = 0.2))
+```
+
 
 ## {-}
+
+
+```{r save_excel}
+saveWorkbook(excel, here::here("output/results_T1_vs_TME1_patients.xlsx"), overwrite = T)
+```

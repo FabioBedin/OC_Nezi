@@ -1,0 +1,406 @@
+---
+title: "TME1 vs TME2 populations"
+author: "Fabio Bedin | MS-Unit"
+date: "13 luglio 2021"
+output: html_document
+---
+
+# Ovarian cancer dataset
+
+***
+
+```{r librerie, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(fig.align = "center")
+library("MBQN")
+library("dplyr")
+library("tidyr")
+library("DEP")
+library("SummarizedExperiment")
+library("preprocessCore")
+library("tibble")
+library("ggplot2")
+library("enrichR")
+library("DT")
+library("stringr")
+library("patchwork")
+library("here")
+library("datapasta")
+library("gprofiler2")
+library("org.Hs.eg.db")
+library("rrvgo")
+library("openxlsx")
+select <- dplyr::select
+```
+
+```{r Custom Functions}
+source(here::here("code/custom_functions.R"))
+```
+
+```{r excel_define_wb}
+header_style <- createStyle(
+  fontSize = 12,
+  fontColour = "#0f0f0f",
+  fgFill = "#faf2ca",
+  halign = "center",
+  border = "TopBottomLeftRight"
+)
+
+body_style <- createStyle(
+  halign = "center",
+  border = "TopBottomLeftRight"
+)
+
+excel <- createWorkbook()
+```
+
+## Introduction
+
+***
+
+For this analysis i will analyze **TME2** and **TME1** populations, to indentify interesting HITs .
+
+```{r input_Data}
+data <- read.csv(here::here("data/proteinGroups.txt"), header = TRUE,stringsAsFactors = FALSE, sep = "\t")
+
+expdesign <- read.table(here::here("data/expdesign.tsv"), header = T, stringsAsFactors = F)
+
+cond_1<-"TME2"
+
+cond_2<-"TME1"
+
+conditions<-c(cond_1,cond_2)
+
+test<- paste(cond_1,cond_2,sep="_vs_")
+
+expdesign <- subset(expdesign, condition %in% conditions)
+```
+
+## Data wrangling
+
+***
+
+First, we need to wrangling the original dataset. From the **proteinGroups** obtained by **MaxQuant** software, remove proteins that are marked form the software as *potential contaminant*, *only identify by site* and *reverse*.
+
+```{r Data wrangling}
+data <- data[data$Reverse != "+" & data$Potential.contaminant != "+" & data$Only.identified.by.site != "+",]
+
+data_unique <- make_unique(data, "Gene.names", "Protein.IDs", delim = ";")
+
+columns<-match(paste("LFQ.intensity.",expdesign$label,sep=""),colnames(data_unique))
+
+data_se <- make_se(data_unique, columns, expdesign)
+```
+
+To understand the structure of the dataset and define a strategy, I use different quality control polts:
+
+### Quality control Plots {.tabset .tabset-fade .tabset-pills}
+
+All this plot can also hepl to decide the strategy to filter the missing data.
+
+#### Frequency plot
+
+```{r plot_freq, fig.height = 7, fig.width = 12}
+plot_frequency(data_se)
+```
+
+#### Number of protein per sample
+
+```{r plot numbers, fig.height = 7, fig.width = 12}
+plot_numbers(data_se)
+```
+
+#### Distibution of each sample
+
+```{r plot_norm, fig.height = 10, fig.width = 10}
+plot_normalization(data_se)
+```
+
+## The problem of missing data
+
+***
+
+In the original dataset, the percentage of missing data is **`r round((sum(is.na(assay(data_se)))/prod(dim(assay(data_se))))*100, digits = 2)`%** and can be visualized with the following heatmap.
+
+```{r plot_mv, message=FALSE, fig.height = 7, fig.width = 12}
+plot_missval(data_se)
+```
+
+## Filter missing data
+
+***
+
+To reduce the percentage of missing data I have decided to filter samples with less then **1500** identify proteins.
+Afrer that, I also use a second strong filter to remove all the proteins that are not identify in **75%** in each replicates in at least 1 groups.
+
+```{r data_filt}
+data_filt <- filter_bad_samples(data_se, thr = 1500)
+
+data_filt <- filter_missval(data_filt, thr = 4)
+```
+
+
+These plot show the effect of the filters. Now we reduce the percetage of missing data in the dataset down to: **`r round((sum(is.na(assay(data_filt)))/prod(dim(assay(data_filt))))*100, digits = 2)`%**.
+
+### Plots with filters {.tabset .tabset-fade .tabset-pills}
+
+#### protein coverage
+
+```{r plot_coverage}
+plot_coverage(data_filt)
+```
+
+#### Number of protein per sample
+
+```{r plot_numbers_filt}
+plot_numbers(data_filt)
+```
+
+#### Distibution
+
+```{r plot_norm_filt, fig.height = 8, fig.width = 8}
+plot_normalization(data_filt)
+```
+
+#### Plot missing data
+
+```{r plot_mv_filt, message=FALSE}
+plot_missval(data_filt)
+```
+
+#### Unique 
+
+Proteins unique for each conditions after filters. This Interesting proteins will also be imputed for use in differential analysis.
+
+```{r}
+unique_pair(data_filt, conditions)
+```
+
+
+## Imputation
+
+***
+
+An idealized version of a label-free discovery mass spectrometry proteomics experiment would provide absolute abundance measurements for a whole proteome, across varying conditions. Unfortunately, this ideal is not realized. Measurements are made on peptides requiring an inferential step to obtain protein level estimates. The inference is complicated by experimental factors that necessitate relative abundance estimation and result in widespread **non-ignorable missing data**. Relative abundance on the log scale takes the form of parameter contrasts. In a complete-case analysis, contrast estimates may be biased by missing data and a substantial amount of useful information will often go unused.
+
+To avoid this problem, we impute missing data using random draws from a manually defined left-shifted Gaussian distribution.
+
+```{r mixed_imputation, message=FALSE, warning=FALSE, results='hide'}
+set.seed(20210520)
+data_imp_man <- impute(data_filt, fun = "man", shift = 1.8, scale = 0.3)
+```
+
+This plot show the effect of imputation, as expected a new population of low intensity values as emerged.
+
+```{r plot_imputation}
+plot_imputation(data_filt, data_imp_man)
+```
+
+## Differential enrichment analysis
+
+***
+
+Protein-wise linear models combined with empirical Bayes statistics are used for the differential enrichment analysis (or differential expression analysis).
+
+```{r test_diff}
+data_diff <- test_diff_BH(data_imp_man, type = "manual", test = test)
+```
+
+I define sifnificant protein with **FDR = 0.05** and **FC = 1**
+
+```{r Diff_prot}
+dep <- add_rejections(data_diff, alpha = 0.05, lfc = 1)
+
+results<-get_results(dep)
+```
+ 
+There are **`r results %>% filter(significant) %>% nrow()`** significant proteins within all comparisons.
+The following table shows the results:
+
+```{r significant_table}
+results %>% 
+  select(starts_with("name") | starts_with(test)) %>% 
+  filter(across(ends_with("significant"))) %>% 
+  arrange(across(ends_with("p.adj"))) %>%
+  mutate(across(2:3, format, scientific = T, digits = 2)) %>%
+  dplyr::rename_with(~ tolower(gsub(paste0(test,"_"), "", .x)), .cols = starts_with(test)) %>% 
+  mutate(significant = str_to_title(significant)) %>%
+  dplyr::rename(FC = ratio) %>% 
+  DT::datatable(options = list(
+  columnDefs = list(list(className = 'dt-center', targets = 1:5)),
+  pageLength = 10)) %>%
+  formatStyle('FC', backgroundColor = styleInterval(c(-1, 1), c('lightblue', 'white', 'tomato'))) %>% 
+  formatStyle('significant', color = styleEqual(c("True", "False"), c('green', 'red')))
+```
+
+
+### Visualization of the results {.tabset .tabset-fade .tabset-pills}
+
+***
+
+The results from the analysis can be easily visualized by a number of plot functions.
+
+#### PCA
+
+```{r PCA, message=FALSE, warning=FALSE, fig.height = 8, fig.width = 8}
+plot_pca(dep, x = 1, y = 2, n = 500, point_size = 4, indicate = "condition")
+```
+
+
+#### Correlation matrix
+
+```{r plot_cor, fig.height = 8}
+plot_cor(dep, significant = TRUE, lower = 0, upper = 1, pal = "Reds")
+```
+
+
+#### Volcano plot
+
+```{r all_volcano, warning=FALSE, fig.height = 8, fig.width = 8}
+plot_volcano(dep, contrast=test, add_names=T,label_size=5,adjusted = F)
+```
+
+#### Cluster Heatmap
+
+```{r heatmap, fig.height = 15, fig.width = 10}
+plot_heatmap(dep, type = "centered", kmeans = TRUE, k = 2, show_row_names = F, indicate = "condition",col_limit = 5)
+```
+
+
+### Gene Ontology {.tabset}
+
+#### `r cond_1`
+
+```{r BP_anova, warning=FALSE, fig.height = 7, fig.width = 10}
+Gname <- results %>% filter(significant & get(paste0(test, "_ratio")) > 0) %>% pull(name)
+
+GO <- gost(query = Gname, organism = "hsapiens", sources = c("GO:BP", "GO:MF", "GO:CC", "KEGG"), ordered_query = T)
+
+gostplot(GO, capped = TRUE, interactive = TRUE)
+
+```
+
+#### Table `r cond_1`
+
+```{r}
+GO$result %>% 
+  as.data.frame() %>% 
+  select(starts_with(c("source", "term_name", "p_value", "term_size", "intersection_size"))) %>% 
+  arrange(p_value) %>%  
+  mutate(p_value = format(p_value, scientific = T, digits = 2)) %>% 
+  DT::datatable(options = list(
+  columnDefs = list(list(className = 'dt-center', targets = 1:6)),
+  pageLength = 10)) %>%
+  formatStyle('source', backgroundColor = styleEqual(c("GO:BP", "GO:MF", "GO:CC", "KEGG"), c('orange', 'tomato', 'lightgreen', 'violet')))
+```
+
+
+#### `r cond_2`
+
+```{r MF_anova, warning=FALSE, fig.height = 7, fig.width = 10}
+Gname <- results %>% filter(significant & get(paste0(test, "_ratio")) < 0) %>% pull(name)
+
+GO <- gost(query = Gname, organism = "hsapiens", sources = c("GO:BP", "GO:MF", "GO:CC", "KEGG"), ordered_query = T)
+
+gostplot(GO, capped = TRUE, interactive = TRUE)
+```
+
+#### Table `r cond_2`
+
+```{r}
+GO$result %>% 
+  as.data.frame() %>% 
+  select(starts_with(c("source", "term_name", "p_value", "term_size", "intersection_size"))) %>% 
+  arrange(p_value) %>%  
+  mutate(p_value = format(p_value, scientific = T, digits = 2)) %>% 
+  DT::datatable(options = list(
+  columnDefs = list(list(className = 'dt-center', targets = 1:6)),
+  pageLength = 10)) %>%
+  formatStyle('source', backgroundColor = styleEqual(c("GO:BP", "GO:MF", "GO:CC", "KEGG"), c('orange', 'tomato', 'lightgreen', 'violet')))
+```
+
+#### Treemap `r cond_2`
+
+```{r treemap_1, message=FALSE, warning=FALSE, fig.height = 7, fig.width = 10}
+simMatrix <- GO$result %>% 
+  as.data.frame() %>%
+  filter(source == "GO:BP") %>% 
+  pull(term_id) %>% 
+  calculateSimMatrix(orgdb="org.Hs.eg.db", ont="BP", method="Rel")
+
+scores <- setNames(-log10(GO$result$p_value), GO$result$term_id)
+
+reducedTerms <- reduceSimMatrix(simMatrix,
+                                scores,
+                                threshold=0.7,
+                                orgdb="org.Hs.eg.db")
+
+treemapPlot(reducedTerms)
+```
+
+#### ScatterPlot `r cond_2`
+
+```{r scatter_2, message=FALSE, warning=FALSE, fig.height = 15, fig.width = 13}
+scatterPlot(simMatrix, reducedTerms, size = "score", labelSize = 5)
+```
+
+
+## {-}
+
+```{r excel_res_table_1}
+a <- get_df_wide(dep) %>% 
+  select(c(name, Protein.IDs, Protein.names, starts_with(conditions), -ends_with(c("CI.R", "CI.L")))) %>% 
+  dplyr::rename_with(., ~ gsub(pattern = paste0(test, "_"), replacement = "", .), starts_with(test)) %>% 
+  dplyr::rename_with(., ~ gsub(pattern = "^", replacement = "LFQ_intensity_", .), starts_with(conditions)) %>%
+  dplyr::rename(FC = diff) %>% 
+  mutate(significant = if_else(significant, "+", "")) %>% 
+  arrange(desc(significant), p.val) %>% 
+  mutate(across(c(p.adj, p.val), format, scientific = T, digits = 2)) %>% 
+  mutate(across(starts_with(c("LFQ", "FC")), .fns = ~ round(.x, digits = 2))) %>% 
+  relocate(significant) %>%
+  relocate(starts_with("LFQ"), .after = p.val)
+  
+
+addWorksheet(excel, sheetName = test, gridLines = F)
+
+writeDataTable(excel, sheet = test, x = a, keepNA = T, na.string = "NaN")
+
+n_row <- a %>% nrow() + 1
+
+n_col <- a %>% ncol()
+
+setColWidths(excel, sheet = test, cols = 1:n_col, widths = 21)
+
+addStyle(excel, sheet = test, style = header_style, rows = 1, cols = 1:n_col, gridExpand = T)
+
+addStyle(excel, sheet = test, style = body_style, rows = 2:n_row, cols = 1:n_col, gridExpand = T)
+
+```
+
+```{r excel_unique_table_1}
+a <- unique_pair(data_filt, conditions = conditions, table = T)
+
+unique_name <- paste0("Unique_", test)
+
+addWorksheet(excel, sheetName = unique_name, gridLines = F)
+
+writeDataTable(excel, sheet = unique_name, x = a, keepNA = T, na.string = "NaN")
+
+n_row <- a %>% nrow() + 1
+
+n_col <- a %>% ncol()
+
+setColWidths(excel, sheet = unique_name, cols = 1:n_col, widths = 21)
+
+addStyle(excel, sheet = unique_name, style = header_style, rows = 1, cols = 1:n_col, gridExpand = T)
+
+addStyle(excel, sheet = unique_name, style = body_style, rows = 2:n_row, cols = 1:n_col, gridExpand = T)
+```
+
+
+```{r save_excel}
+saveWorkbook(excel, here::here("output/results_TME2_vs_TME1_population.xlsx"), overwrite = T)
+```
+
+
+***
+
